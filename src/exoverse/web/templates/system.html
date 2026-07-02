@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}{{ s['name'] }} — exoverse{% endblock %}
+{% block content %}
+<h1>{{ s['name'] }}</h1>
+<p class="muted small">id {{ s['id'] }} · seed {{ s['seed'] }} · deterministic:
+this world re-generates bit-for-bit from its seed.</p>
+
+<div class="card">
+  <h3 style="margin-top:0">Star — {{ s['st_sptype'] }}</h3>
+  <table>
+    <tr><td>Mass / Radius / Teff</td>
+        <td>{{ s['st_mass']|num(2) }} M☉ · {{ s['st_radius']|num(2) }} R☉ ·
+            {{ s['st_teff']|num(0) }} K</td></tr>
+    <tr><td>Luminosity / [Fe/H]</td>
+        <td>{{ s['st_lum']|num(3) }} L☉ · {{ s['st_feh']|num(2) }} dex</td></tr>
+    <tr><td>Age</td>
+        <td>{{ s['st_age_gyr']|num(1) }} Gyr (MS lifetime
+            {{ s['st_ms_lifetime_gyr']|num(1) }} Gyr)</td></tr>
+    <tr><td>Distance / magnitudes</td>
+        <td>{{ s['st_distance_pc']|num(1) }} pc · V={{ s['st_mag_v']|num(2) }}
+            · T={{ s['st_mag_tess']|num(2) }} · J={{ s['st_mag_j']|num(2) }}</td></tr>
+    {% if s['st_prot_days'] is not none %}
+    <tr><td>Stellar noise</td>
+        <td>P<sub>rot</sub>={{ s['st_prot_days']|num(1) }} d ·
+            activity {{ s['st_activity']|num(2) }} ·
+            spot variability ~{{ s['st_var_amp_ppm']|num(0) }} ppm ·
+            granulation {{ s['st_gran_1hr_ppm']|num(0) }} ppm/hr ·
+            flares {{ s['st_flare_1hr_ppm']|num(0) }} ppm/hr</td></tr>
+    {% endif %}
+    <tr><td>System plane</td>
+        <td>i = {{ s['sys_inc_deg']|num(2) }}° (90° = edge-on)</td></tr>
+  </table>
+</div>
+
+{% for p in planets %}
+{% set r = p.row %}
+<div class="card">
+  <h3 style="margin-top:0">{{ s['name'] }} {{ r['letter'] }}
+    <span class="badge">{{ r['comp_class'] }}</span>
+    {% if r['in_hz'] %}<span class="badge hz">habitable zone</span>{% endif %}
+    {% if r['transits'] %}<span class="badge det">transits</span>{% endif %}
+  </h3>
+  <table>
+    <tr><td>Bulk</td>
+      <td>{{ r['radius_re']|sizefmt }} · {{ r['mass_me']|num(1) }} M⊕ ·
+          ρ={{ r['density_gcc']|num(2) }} g/cc</td></tr>
+    <tr><td>Orbit</td>
+      <td>P={{ r['period_d']|num(3) }} d · a={{ r['a_au']|num(4) }} AU ·
+          e={{ r['ecc']|num(3) }} · i={{ r['inc_deg']|num(2) }}°</td></tr>
+    <tr><td>Environment</td>
+      <td>T<sub>eq</sub>={{ r['teq_k']|num(0) }} K ·
+          S={{ r['insolation_se']|num(1) }} S⊕</td></tr>
+    {% if p.atm %}
+    <tr><td>Atmosphere</td>
+      <td>{% if p.atm['mu'] > 0 %}
+        {{ p.atm['atm_class'] }} · μ={{ p.atm['mu']|num(1) }} ·
+        H={{ p.atm['scale_height_km']|num(0) }} km ·
+        feature ~{{ p.atm['feature_ppm']|num(0) }} ppm
+        (clouds ×{{ p.atm['cloud_factor']|num(2) }}) ·
+        TSM={{ p.atm['tsm']|num(0) }}{% if p.atm['tsm_priority'] %} <strong>priority</strong>{% endif %}
+        · ESM={{ p.atm['esm']|num(0) }}
+      {% else %}likely airless (cosmic shoreline){% endif %}</td></tr>
+    {% endif %}
+    {% if r['transits'] %}
+    <tr><td>Transit</td>
+      <td>depth {{ r['depth_ppm']|num(0) }} ppm · b={{ r['impact_b']|num(2) }} ·
+          T₁₄={{ r['t14_hr']|num(2) }} h ·
+          geometric probability {{ (r['prob_transit']*100)|num(1) }}%</td></tr>
+    {% endif %}
+  </table>
+
+  {% if p.obs %}
+  <h4 class="muted small" style="margin-bottom:4px">Observability</h4>
+  <table>
+    <thead><tr><th>Observatory</th><th>Mode</th><th>σ inst (ppm/hr)</th>
+      <th>σ star (ppm)</th><th>SNR/event</th><th>N events</th><th>Total SNR</th>
+      <th></th></tr></thead>
+    <tbody>
+    {% for o in p.obs %}
+    <tr data-tip="{{ o['note'] }}">
+      <td>{{ o['observatory'] }}</td>
+      <td>{{ o['mode'] }}</td>
+      {% if o['mode'] == 'imaging' %}
+      <td colspan="2" class="muted">contrast {{ '%.1e'|format(o['contrast']) }}
+          · sep {{ o['separation_mas']|num(1) }} mas</td>
+      <td colspan="2"></td>
+      <td>{{ o['snr_total']|num(1) }}</td>
+      {% else %}
+      <td>{{ o['sigma_1hr_ppm']|num(0) }}</td>
+      <td>{{ o['sigma_stellar_ppm']|num(0) }}</td>
+      <td>{{ o['snr_per_transit']|num(1) }}</td>
+      <td>{{ o['n_transits']|num(1) }}</td>
+      <td>{{ o['snr_total']|num(1) }}</td>
+      {% endif %}
+      <td>{% if o['detectable'] %}<span class="badge det">detectable</span>
+          {% elif not o['usable'] %}<span class="badge">unusable</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if p.atm_obs %}
+  <h4 class="muted small" style="margin-bottom:4px">Atmosphere spectroscopy</h4>
+  <table>
+    <thead><tr><th>Instrument</th><th>Feature SNR / transit</th>
+      <th>Transits for 5σ</th><th></th></tr></thead>
+    <tbody>
+    {% for ao in p.atm_obs %}
+    <tr data-tip="{{ ao['note'] }}">
+      <td>{{ ao['observatory'] }}</td>
+      <td>{{ ao['feature_snr_per_transit']|num(2) }}</td>
+      <td>{% if ao['n_transits_5sigma'] < 0 or ao['n_transits_5sigma'] > 100000 %}
+          impractical{% else %}{{ ao['n_transits_5sigma']|num(1) }}{% endif %}</td>
+      <td>{% if ao['practical'] %}<span class="badge det">practical</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% for c in curves %}
+<div class="card">
+  <h3 style="margin-top:0">Light curve — planet {{ c.letter }}</h3>
+  {{ c.svg|safe }}
+</div>
+{% endfor %}
+
+{% if flags %}
+<div class="card">
+  <h3 style="margin-top:0">Plausibility flags</h3>
+  <table>
+    {% for f in flags %}
+    <tr>
+      <td style="white-space:nowrap">
+        {% if f['severity'] == 'questionable' %}<span class="flag-q">?</span>
+        {% else %}<span class="flag-i">i</span>{% endif %}
+        {{ f['scope'] }}{% if f['planet_id'] %} {{ letters.get(f['planet_id'], '') }}{% endif %}
+      </td>
+      <td class="muted small" style="white-space:nowrap">{{ f['rule'] }}</td>
+      <td class="small">{{ f['message'] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

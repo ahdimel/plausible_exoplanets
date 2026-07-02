@@ -46,7 +46,8 @@ def test_population_roundtrip(tmp_path):
                 if p["transits"]:
                     assert p["depth_ppm"] > 0
                     assert p["t14_hr"] > 0
-                    assert len(db.get_observations(p["id"])) == 5
+                    # 6 transit observatories + HWO imaging
+                    assert len(db.get_observations(p["id"])) == 7
             break
     # No invalid-severity flags should ever be persisted
     n_invalid = db.conn.execute(

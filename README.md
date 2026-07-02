@@ -22,6 +22,10 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/exoverse --db worlds.db inspect PXS-42-00481      # full metadata + flags
 .venv/bin/exoverse --db worlds.db lightcurve PXS-42-00481 d # PNG light curve
 
+.venv/bin/exoverse archive --refresh        # fetch real-planet catalog snapshot
+.venv/bin/exoverse --db worlds.db validate  # audit our physics vs real planets
+.venv/bin/exoverse --db worlds.db serve     # browser UI at localhost:8321
+
 .venv/bin/python -m pytest      # physics sanity tests vs known real values
 ```
 
@@ -48,6 +52,21 @@ Rayleigh eccentricities for multis; Rayleigh(1.5°) mutual inclinations
 (Fabrycky+ 2014); equilibrium temperature, insolation, and conservative
 habitable-zone membership (simplified Kopparapu+ 2013).
 
+**Stellar noise** — every star carries an astrophysical noise state:
+granulation via ν_max scaling (Kallinger+ 2014), p-mode oscillations
+(Kjeldsen & Bedding 1995), rotational spot variability with gyrochronology
+(Prot ~ √age; McQuillan+ 2014 amplitude span; M dwarfs stay active longer),
+and M-dwarf flares. Spot/flare terms are chromatic (Rackham+ 2018): full
+strength in the blue optical, ~75% in the TESS band, ~40% in JWST/Roman NIR.
+Stellar noise is added in quadrature to every observatory's budget.
+
+**Atmospheres** — each planet gets an atmosphere class (H/He, H/He-rich,
+steam, secondary CO₂/N₂, or airless via the Mars-normalized cosmic shoreline
+of Zahnle & Catling 2017), scale height, expected transmission feature with a
+random cloud/haze suppression factor, TSM and ESM metrics (Kempton+ 2018),
+and per-JWST-instrument spectroscopy scoring (transits needed for a 5σ
+feature detection, with a stellar-contamination noise floor).
+
 **Transits** — Winn (2010) geometry with full eccentricity corrections
 (impact parameter, T14/T23 durations, a-priori probability) and a
 quadratic-limb-darkened light-curve model integrated per-annulus over exactly
@@ -63,6 +82,36 @@ to ~1e-13 relative; equivalent to Mandel & Agol 2002).
 | JWST NIRISS SOSS | ~20 ppm/hr @ J=8, saturates J<6.5 | single targeted transit, SNR ≥ 5 |
 | JWST NIRSpec Prism | ~12 ppm/hr @ J=11, saturates J<10.5 | single targeted transit, SNR ≥ 5 |
 | Ground 1-m survey | 2 mmag + scintillation floor, 90 nights | SNR ≥ 7, ≥ 3 transits, depth > 1 mmag |
+| **Roman GBTDS** (2027+) | ~700 ppm/hr @ F146=16, 6×72 d seasons | SNR ≥ 7.1, ≥ 3 transits |
+| **HWO imaging** (2040s) | reflected light: C = A_g·Φ·(Rp/a)², 3e-11 floor, 60 mas IWA | host V<8, d<30 pc, resolved |
+
+The two future facilities are documented — with sources and explicit
+"specs will evolve" caveats — in [docs/OBSERVATORIES.md](docs/OBSERVATORIES.md).
+
+## Validation against real exoplanets
+
+`exoverse archive --refresh` snapshots the real confirmed-planet catalog
+(NASA Exoplanet Archive TAP when its service is healthy; The Extrasolar
+Planets Encyclopaedia as automatic fallback — provenance recorded in the
+snapshot). `exoverse validate` then runs two checks:
+
+1. **Physics-rule audit**: every real planet with sufficient measured data is
+   run through our generator's hard INVALID rules. Violation rates are
+   1–4% and fully attributable to catalog artifacts (transiting brown dwarfs
+   cataloged as planets; low-SNR mass measurements) — i.e. our validity
+   rules correctly bound reality.
+2. **Selection-matched population comparison**: synthetic planets detectable
+   by our modeled Kepler are compared to real transit-discovered planets via
+   two-sample KS tests. Periods agree (p ≈ 0.9); host-star temperatures
+   deliberately disagree (real surveys target FGK stars, our sample is
+   IMF-weighted) — the report distinguishes matches from designed mismatches.
+
+## Browser UI
+
+`exoverse --db worlds.db serve` starts a Flask app (dashboard with population
+charts, filterable system list, per-system detail pages with light curves,
+observability and atmosphere tables, plausibility flags, and the validation
+report). Read-only over the database, ready to be deployed for collaboration.
 
 ## The plausibility framework
 
@@ -101,18 +150,21 @@ Every object carries typed flags at three severities:
   recovers ~80% of them; hypothetical-Kepler recovers ~95% given its 4-yr
   baseline.
 
-## Known limitations (deliberate v1 scope)
+## Known limitations (deliberate scope)
 
-- Single main-sequence stars only: no binaries, no evolved hosts, no spots or
-  stellar activity noise.
+- Single main-sequence stars only: no binaries, no evolved hosts.
 - Occurrence distributions are literature-shaped parametric fits, not fits to
   the actual Kepler/TESS posterior samples.
 - No transit-timing variations, no mean-motion resonances, no N-body
   verification of multi-planet stability (Hill-spacing criteria only).
-- Observatory systematics are single noise floors; no red noise, no
-  window-function/duty-cycle modeling beyond a scalar.
-- No transmission spectroscopy yet — JWST is modeled as a white-light
-  transit detector; atmosphere characterization SNR is the natural next step.
+- Observatory systematics are noise floors; no red noise or window functions.
+- Stellar noise coefficients are order-of-magnitude Kepler calibrations,
+  fine for populations, not for fitting an individual star.
+- Atmosphere classes are probabilistic assignments over genuinely degenerate
+  bulk compositions (flagged per planet); spectroscopy scoring is a
+  scale-height heuristic, not radiative transfer.
+- Roman/HWO models are requirement-era and WILL drift as the missions evolve
+  (see docs/OBSERVATORIES.md, "Last researched" date).
 
 ## Layout
 
@@ -121,12 +173,18 @@ src/exoverse/
   constants.py       physical constants (CODATA/IAU)
   flags.py           severity-typed plausibility flag framework
   stars.py           IMF, scaling relations, magnitudes, limb darkening
+  stellar_noise.py   granulation / oscillations / spots / flares model
   planets.py         occurrence distributions, M-R relations, validity rules
+  atmospheres.py     atmosphere classes, scale heights, TSM/ESM, spectroscopy
   system.py          assembly + Hill/orbit-crossing stability
   transits.py        Winn-2010 geometry + limb-darkened light curves
-  observatories.py   TESS / Kepler / JWST / ground noise + detection
+  observatories.py   TESS / Kepler / JWST / ground / Roman / HWO
+  archive.py         real-planet catalog client (NASA TAP + exoplanet.eu)
+  validate.py        physics-rule audit + KS population comparison
   database.py        SQLite schema and queries
   generate.py        population orchestration
-  cli.py             generate / list / inspect / stats / lightcurve
+  cli.py             generate/list/inspect/stats/lightcurve/archive/validate/serve
+  web/               Flask browser UI (templates + server-rendered SVG charts)
+docs/OBSERVATORIES.md  observatory assumptions, sources, volatility notes
 tests/               sanity tests against known real-world values
 ```

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}exoverse — methods{% endblock %}
+{% block content %}
+<h1>Methods</h1>
+
+<div class="card">
+<h3 style="margin-top:0">What this is</h3>
+<p>A bottom-up study of transit-survey selection effects. We procedurally
+generate the full spectrum of plausible stellar systems consistent with the
+laws of physics and current occurrence statistics, insert validated planets,
+simulate their light signatures with astrophysical (stellar) noise, and score
+detectability for real and future observatories. Every object carries typed
+plausibility flags; draws that violate physics are rejected and never enter
+the database.</p>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">Generation physics</h3>
+<ul class="small">
+<li><strong>Stars</strong>: Kroupa (2001) IMF 0.08–2.2 M☉; main-sequence
+scaling relations; Stefan–Boltzmann T<sub>eff</sub>; thin-disk metallicities;
+Flower/Torres bolometric corrections; Claret-like limb darkening.</li>
+<li><strong>Stellar noise</strong>: granulation via ν<sub>max</sub> scaling
+(Kallinger+ 2014), p-modes (Kjeldsen &amp; Bedding 1995), rotational spot
+variability with gyrochronology (Skumanich; McQuillan+ 2014 amplitudes),
+M-dwarf flares; chromatic spot factors per band (Rackham+ 2018).</li>
+<li><strong>Planets</strong>: Kepler-shaped occurrence (Petigura+ 2013 periods,
+Fulton+ 2017 radius valley), metallicity-scaled giants (Fischer &amp; Valenti
+2005), probabilistic mass–radius (Chen &amp; Kipping 2017 style), Kipping
+(2013) eccentricities, Hill-stability-checked assembly (Gladman 1993,
+Pu &amp; Wu 2015).</li>
+<li><strong>Atmospheres</strong>: class from bulk properties + cosmic
+shoreline (Zahnle &amp; Catling 2017); scale heights; random cloud
+suppression; TSM/ESM (Kempton+ 2018); JWST feature detectability with
+stellar-contamination floors.</li>
+<li><strong>Transits</strong>: Winn (2010) geometry; numerically exact
+quadratic limb-darkened light curves.</li>
+</ul>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">Observatories</h3>
+<p class="small">TESS, Kepler (archival), JWST NIRISS SOSS &amp; NIRSpec
+Prism, a ground 1-m survey, and two <strong>future</strong> facilities whose
+specs will evolve: the Nancy Grace Roman Space Telescope Galactic Bulge Time
+Domain Survey (launch late 2026; modeled as "if this system were in a Roman
+field") and the Habitable Worlds Observatory (2040s, pre-Phase-A; reflected
+light direct imaging with ~1e-10 contrast and ~60 mas inner working angle).
+Full assumptions, sources, and volatility notes:
+<code>docs/OBSERVATORIES.md</code> in the repository.</p>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">Validation</h3>
+<p class="small">The generator is checked against real confirmed exoplanets
+(NASA Exoplanet Archive TAP when available; The Extrasolar Planets
+Encyclopaedia as fallback — provenance recorded). Two checks: (1) real
+planets are run through our hard physics rules — violations are catalog
+measurement artifacts at the ~1–4% level, dominated by transiting brown
+dwarfs and low-SNR masses; (2) selection-matched population comparison via
+two-sample KS tests. See the Validation page.</p>
+</div>
+{% endblock %}

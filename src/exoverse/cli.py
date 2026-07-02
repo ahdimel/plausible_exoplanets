@@ -1,4 +1,5 @@
-"""Command-line interface: generate, list, inspect, stats, lightcurve."""
+"""Command-line interface: generate, list, inspect, stats, lightcurve,
+archive, validate, serve."""
 
 from __future__ import annotations
 
@@ -50,6 +51,12 @@ def cmd_inspect(args) -> None:
           f"d={s['st_distance_pc']:.1f} pc")
     print(f"       V={s['st_mag_v']:.2f}  T={s['st_mag_tess']:.2f}  "
           f"J={s['st_mag_j']:.2f}  limb dark u1={s['st_u1']:.2f} u2={s['st_u2']:.2f}")
+    if s["st_prot_days"] is not None:
+        print(f"Noise: Prot={s['st_prot_days']:.1f} d  "
+              f"activity={s['st_activity']:.2f}  "
+              f"spot variability~{s['st_var_amp_ppm']:.0f} ppm  "
+              f"granulation={s['st_gran_1hr_ppm']:.0f} ppm/hr  "
+              f"flares={s['st_flare_1hr_ppm']:.0f} ppm/hr")
     print(f"       system plane inclination: {s['sys_inc_deg']:.2f} deg "
           f"(90 = edge-on)")
 
@@ -65,20 +72,49 @@ def cmd_inspect(args) -> None:
         print(f"    P={p['period_d']:.3f} d  a={p['a_au']:.4f} AU  "
               f"e={p['ecc']:.3f}  i={p['inc_deg']:.2f} deg")
         print(f"    Teq={p['teq_k']:.0f} K  S={p['insolation_se']:.1f} S_earth")
+
+        atm = db.get_atmosphere(p["id"])
+        if atm:
+            if atm["mu"] > 0:
+                print(f"    Atmosphere: {atm['atm_class']}  mu={atm['mu']:.1f}  "
+                      f"H={atm['scale_height_km']:.0f} km  "
+                      f"feature~{atm['feature_ppm']:.0f} ppm "
+                      f"(clouds x{atm['cloud_factor']:.2f})  "
+                      f"TSM={atm['tsm']:.0f}{' *priority*' if atm['tsm_priority'] else ''}  "
+                      f"ESM={atm['esm']:.0f}")
+            else:
+                print(f"    Atmosphere: {atm['atm_class']} (likely stripped; "
+                      "cosmic shoreline)")
+
         if p["transits"]:
             print(f"    TRANSITS: depth={p['depth_ppm']:.0f} ppm "
                   f"(uniform {p['depth_uniform_ppm']:.0f})  b={p['impact_b']:.2f}  "
                   f"T14={p['t14_hr']:.2f} h  T23={p['t23_hr']:.2f} h  "
                   f"a-priori prob={p['prob_transit']*100:.1f}%")
-            for o in db.get_observations(p["id"]):
-                status = "DETECTABLE" if o["detectable"] else (
-                    "usable, below threshold" if o["usable"] else "unusable")
-                print(f"      {o['observatory']:<22} sigma_1hr={o['sigma_1hr_ppm']:>7.0f} ppm  "
-                      f"SNR/tr={o['snr_per_transit']:>6.1f}  Ntr={o['n_transits']:>6.1f}  "
-                      f"SNR={o['snr_total']:>7.1f}  {status}  [{o['note']}]")
         else:
             print(f"    no transit (b={p['impact_b']:.2f}, a-priori prob "
                   f"{p['prob_transit']*100:.1f}%)")
+        for o in db.get_observations(p["id"]):
+            if o["mode"] == "imaging":
+                status = ("DETECTABLE" if o["detectable"] else "not detectable")
+                print(f"      {o['observatory']:<22} contrast={o['contrast']:.1e}  "
+                      f"sep={o['separation_mas']:.1f} mas  {status}  [{o['note']}]")
+            else:
+                status = "DETECTABLE" if o["detectable"] else (
+                    "usable, below threshold" if o["usable"] else "unusable")
+                print(f"      {o['observatory']:<22} "
+                      f"sigma_1hr={o['sigma_1hr_ppm']:>7.0f} ppm  "
+                      f"star={o['sigma_stellar_ppm']:>5.0f} ppm  "
+                      f"SNR/tr={o['snr_per_transit']:>6.1f}  "
+                      f"Ntr={o['n_transits']:>6.1f}  "
+                      f"SNR={o['snr_total']:>7.1f}  {status}  [{o['note']}]")
+        for ao in db.get_atm_observations(p["id"]):
+            n5 = ao["n_transits_5sigma"]
+            n5s = "impractical" if n5 < 0 or n5 > 1e5 else f"{n5:.1f} transits"
+            print(f"      [spectroscopy] {ao['observatory']:<22} "
+                  f"feature SNR/tr={ao['feature_snr_per_transit']:.2f}  "
+                  f"5-sigma in {n5s}"
+                  f"{'  PRACTICAL' if ao['practical'] else ''}")
 
     flags = db.get_flags(s["id"])
     if flags:
@@ -86,8 +122,9 @@ def cmd_inspect(args) -> None:
         for f in flags:
             scope = f["scope"]
             if f["planet_id"]:
-                letter = next((p["letter"] for p in planets if p["id"] == f["planet_id"]), "?")
-                scope = f"planet {letter}"
+                letter = next((p["letter"] for p in planets
+                               if p["id"] == f["planet_id"]), "?")
+                scope = f"{f['scope']} {letter}"
             print(f"  [{_severity_marker(f['severity'])}] ({scope}) "
                   f"{f['rule']}: {f['message']}")
     print()
@@ -101,7 +138,6 @@ def cmd_stats(args) -> None:
 
 
 def cmd_lightcurve(args) -> None:
-    """Re-simulate and plot the light curve for one planet (requires matplotlib)."""
     from .system import generate_system
     from .transits import compute_geometry, model_light_curve
 
@@ -139,11 +175,47 @@ def cmd_lightcurve(args) -> None:
     db.close()
 
 
+def cmd_archive(args) -> None:
+    from .archive import load_snapshot, refresh_snapshot
+    if args.refresh:
+        try:
+            path, source = refresh_snapshot(args.data_dir, prefer=args.prefer)
+            print(f"Snapshot refreshed from source '{source}' -> {path}")
+        except RuntimeError as e:
+            print(f"Refresh failed: {e}", file=sys.stderr)
+            sys.exit(1)
+    try:
+        planets, meta = load_snapshot(args.data_dir)
+        n_tran = sum(1 for p in planets if p.tran_flag == 1.0)
+        print(f"Snapshot: {meta['count']} confirmed planets "
+              f"({n_tran} transiting), source={meta['source']}, "
+              f"fetched={meta['fetched']}")
+    except FileNotFoundError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_validate(args) -> None:
+    from .validate import format_report, run_validation
+    report = run_validation(args.db, args.data_dir)
+    print(format_report(report))
+    print(f"\nFull report: {report['report_path']}")
+
+
+def cmd_serve(args) -> None:
+    from .web.app import create_app
+    app = create_app(args.db, data_dir=args.data_dir)
+    print(f"exoverse web UI: http://127.0.0.1:{args.port}")
+    app.run(host=args.host, port=args.port, debug=args.debug)
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(
         prog="exoverse",
         description="Procedurally generated, physics-validated exoplanet worlds")
     ap.add_argument("--db", default="worlds.db", help="SQLite database path")
+    ap.add_argument("--data-dir", default="data",
+                    help="directory for archive snapshots and reports")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     g = sub.add_parser("generate", help="generate a population")
@@ -169,6 +241,21 @@ def main(argv=None) -> None:
     lc.add_argument("planet", help="planet letter, e.g. b")
     lc.add_argument("--out", default=None)
     lc.set_defaults(func=cmd_lightcurve)
+
+    ar = sub.add_parser("archive", help="fetch/inspect the real-planet catalog")
+    ar.add_argument("--refresh", action="store_true")
+    ar.add_argument("--prefer", choices=["nasa", "eu"], default="nasa")
+    ar.set_defaults(func=cmd_archive)
+
+    va = sub.add_parser("validate",
+                        help="validate generator against real exoplanets")
+    va.set_defaults(func=cmd_validate)
+
+    se = sub.add_parser("serve", help="run the browser UI")
+    se.add_argument("--host", default="127.0.0.1")
+    se.add_argument("--port", type=int, default=8321)
+    se.add_argument("--debug", action="store_true")
+    se.set_defaults(func=cmd_serve)
 
     args = ap.parse_args(argv)
     args.func(args)

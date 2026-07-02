@@ -7,7 +7,7 @@ name = "exoverse"
 version = "0.1.0"
 description = "Procedurally generated, physics-validated exoplanetary systems with transit observability modeling"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24"]
+dependencies = ["numpy>=1.24", "flask>=3.0"]
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.7"]
@@ -18,3 +18,6 @@ exoverse = "exoverse.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+exoverse = ["web/templates/*.html"]

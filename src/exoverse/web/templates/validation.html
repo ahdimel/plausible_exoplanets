@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}exoverse — validation{% endblock %}
+{% block content %}
+<h1>Validation against real exoplanets</h1>
+{% if report is none %}
+<div class="card"><p>No validation report yet. Run:
+<code>exoverse archive --refresh && exoverse validate</code></p></div>
+{% else %}
+<p class="muted">Catalog: {{ report.archive.count }} confirmed planets
+(source: {{ report.archive.source }}, fetched {{ report.archive.fetched }})</p>
+
+<h2>Physics-rule audit</h2>
+<p class="small muted">Real planets run through our generator's hard INVALID
+rules. Low violation rates mean the rules bound reality correctly; the
+residuals are catalog measurement artifacts, explained per rule.</p>
+<div class="card">
+<table>
+  <thead><tr><th>Rule</th><th>Violations</th><th>Rate</th>
+    <th>Examples</th><th>Interpretation</th></tr></thead>
+  <tbody>
+  {% for a in report.rule_audits %}
+  <tr>
+    <td style="white-space:nowrap">{{ a.rule }}</td>
+    <td>{{ a.n_violations }}/{{ a.n_checked }}</td>
+    <td>{{ '%.2f'|format(a.n_violations / a.n_checked * 100 if a.n_checked else 0) }}%</td>
+    <td class="small">{{ a.examples[:4]|join(', ') }}</td>
+    <td class="small muted">{{ a.interpretation }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>Population comparison (selection-matched)</h2>
+<p class="small muted">Synthetic planets detectable by our modeled Kepler
+survey vs real transit-discovered planets — forward-modeling the selection
+effect rather than comparing raw distributions.</p>
+<div class="card">
+<table>
+  <thead><tr><th>Quantity</th><th>KS D</th><th>p-value</th>
+    <th>n synthetic</th><th>n real</th><th>Median (syn / real)</th><th>Note</th></tr></thead>
+  <tbody>
+  {% for c in report.distributions %}
+  <tr>
+    <td>{{ c.quantity }}</td>
+    <td>{{ '%.3f'|format(c.ks_stat) }}</td>
+    <td>{{ '%.4f'|format(c.ks_pvalue) }}</td>
+    <td>{{ c.n_synthetic }}</td>
+    <td>{{ c.n_real }}</td>
+    <td>{{ c.synthetic_quantiles.q50 }} / {{ c.real_quantiles.q50 }}</td>
+    <td class="small muted">{{ c.note }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% if hist_p %}
+<h2>Period distribution</h2>
+<div class="card">{{ hist_p|safe }}</div>
+{% endif %}
+{% if hist_r %}
+<h2>Radius distribution</h2>
+<div class="card">{{ hist_r|safe }}</div>
+{% endif %}
+{% endif %}
+{% endblock %}

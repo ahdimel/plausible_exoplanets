@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}exoverse — dashboard{% endblock %}
+{% block content %}
+<h1>Procedurally generated worlds</h1>
+<p class="muted">Physics-validated synthetic stellar systems, observed by
+real and future instruments.</p>
+
+<div class="tiles">
+  <div class="tile"><div class="v">{{ stats.systems }}</div><div class="l">systems</div></div>
+  <div class="tile"><div class="v">{{ stats.planets }}</div><div class="l">planets</div></div>
+  <div class="tile"><div class="v">{{ stats.transiting_planets }}</div><div class="l">transiting</div></div>
+  <div class="tile"><div class="v">{{ stats.hz_planets }}</div><div class="l">in habitable zone</div></div>
+  <div class="tile"><div class="v">{{ stats.tsm_priority_targets }}</div><div class="l">TSM priority targets</div></div>
+  <div class="tile"><div class="v">{{ stats.questionable_flags }}</div><div class="l">questionable flags</div></div>
+</div>
+
+<h2>Detections by observatory</h2>
+<div class="card">{{ det_chart|safe }}</div>
+
+<h2>The population</h2>
+<div class="card">
+  <div class="legend">
+    {% for cls, slot in legend %}
+    <span><span class="sw" style="background:var(--series-{{ slot }})"></span>{{ cls }}</span>
+    {% endfor %}
+    <span class="muted">— outlined point = transiting. Click a point to inspect its system.</span>
+  </div>
+  {{ scatter|safe }}
+</div>
+{% endblock %}

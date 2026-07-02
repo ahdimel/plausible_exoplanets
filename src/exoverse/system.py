@@ -21,10 +21,12 @@ from typing import List
 
 import numpy as np
 
+from .atmospheres import assign_atmosphere
 from .constants import M_EARTH, M_SUN
 from .flags import Flag, Severity
 from .planets import Planet, generate_planet, sample_period
 from .stars import Star, generate_star
+from .stellar_noise import StellarNoise, generate_stellar_noise
 
 GLADMAN_DELTA = 2.0 * math.sqrt(3.0)
 LONGTERM_DELTA = 9.0
@@ -39,6 +41,7 @@ class StellarSystem:
     star: Star
     planets: List[Planet]           # sorted by period
     sys_inc_deg: float              # inclination of the system plane
+    noise: StellarNoise = None      # astrophysical noise state of the star
     flags: List[Flag] = field(default_factory=list)
 
     def add_flag(self, severity: Severity, rule: str, message: str) -> None:
@@ -119,8 +122,14 @@ def generate_system(seed: int, name: str, max_planet_tries: int = 40) -> Stellar
         # clipping at 90 would create an artificial pileup at b = 0
         p.inc_deg = float(np.clip(sys_inc + sign * mut, 0.0, 180.0))
 
+    # Astrophysical noise state and atmospheres are drawn here (not in the
+    # orchestrator) so a system is bit-for-bit reproducible from (seed, name)
+    noise = generate_stellar_noise(rng, star)
+    for p in planets:
+        p.atmosphere = assign_atmosphere(rng, star, p)
+
     system = StellarSystem(name=name, seed=seed, star=star, planets=planets,
-                           sys_inc_deg=sys_inc)
+                           sys_inc_deg=sys_inc, noise=noise)
     if n_target > 0 and len(planets) < n_target:
         system.add_flag(Severity.INFO, "system.multiplicity_reduced",
                         f"Targeted {n_target} planets but only {len(planets)} "

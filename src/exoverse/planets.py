@@ -74,6 +74,7 @@ class Planet:
     teq: float             # K, equilibrium temperature (A=0.3, full redistribution)
     insolation: float      # Earth flux units
     in_habitable_zone: bool
+    atmosphere: object = None   # exoverse.atmospheres.Atmosphere, set at system level
     flags: List[Flag] = field(default_factory=list)
 
     def add_flag(self, severity: Severity, rule: str, message: str) -> None:

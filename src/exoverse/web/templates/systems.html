@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}exoverse — systems{% endblock %}
+{% block content %}
+<h1>Systems</h1>
+<div class="filters">
+  <a href="/systems" class="{{ 'on' if not transiting and not detectable }}">All</a>
+  <a href="/systems?transiting=1" class="{{ 'on' if transiting }}">With transits</a>
+  <a href="/systems?detectable=1" class="{{ 'on' if detectable }}">With detections</a>
+</div>
+<div class="card">
+<table>
+  <thead><tr><th>Name</th><th>Type</th><th>Teff (K)</th><th>M (M☉)</th>
+    <th>d (pc)</th><th>V</th><th>Age (Gyr)</th><th>Activity</th>
+    <th>Planets</th><th>Transiting</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/system/{{ r['name'] }}">{{ r['name'] }}</a></td>
+    <td>{{ r['st_sptype'] }}</td>
+    <td>{{ r['st_teff']|num(0) }}</td>
+    <td>{{ r['st_mass']|num(2) }}</td>
+    <td>{{ r['st_distance_pc']|num(1) }}</td>
+    <td>{{ r['st_mag_v']|num(1) }}</td>
+    <td>{{ r['st_age_gyr']|num(1) }}</td>
+    <td>{{ r['st_activity']|num(2) }}</td>
+    <td>{{ r['n_planets'] }}</td>
+    <td>{{ r['n_transiting'] or '—' }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p>
+  {% if page > 1 %}<a href="?page={{ page-1 }}{{ '&transiting=1' if transiting }}{{ '&detectable=1' if detectable }}">← Prev</a>{% endif %}
+  <span class="muted">page {{ page }}</span>
+  {% if has_next %}<a href="?page={{ page+1 }}{{ '&transiting=1' if transiting }}{{ '&detectable=1' if detectable }}">Next →</a>{% endif %}
+</p>
+{% endblock %}
