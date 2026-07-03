@@ -15,7 +15,7 @@ from .observatories import Observation
 from .system import StellarSystem
 from .transits import TransitGeometry
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3   # v3: atmospheres.geometric_albedo (per-planet A_g draw)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS atmospheres (
     planet_id INTEGER UNIQUE NOT NULL REFERENCES planets(id),
     atm_class TEXT, mu REAL, scale_height_km REAL,
     delta_1h_ppm REAL, feature_ppm REAL, cloud_factor REAL,
-    tsm REAL, esm REAL, tsm_priority INTEGER
+    tsm REAL, esm REAL, tsm_priority INTEGER, geometric_albedo REAL
 );
 CREATE TABLE IF NOT EXISTS atm_observations (
     id INTEGER PRIMARY KEY,
@@ -194,11 +194,12 @@ class WorldDB:
                 self.conn.execute(
                     """INSERT INTO atmospheres (planet_id, atm_class, mu,
                        scale_height_km, delta_1h_ppm, feature_ppm,
-                       cloud_factor, tsm, esm, tsm_priority)
-                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                       cloud_factor, tsm, esm, tsm_priority, geometric_albedo)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                     (planet_id, atm.atm_class, atm.mu, atm.scale_height_km,
                      atm.delta_1h_ppm, atm.feature_ppm, atm.cloud_factor,
-                     atm.tsm, atm.esm, int(atm.tsm_priority)))
+                     atm.tsm, atm.esm, int(atm.tsm_priority),
+                     atm.geometric_albedo))
                 for f in atm.flags:
                     self._save_flag("atmosphere", system_id, planet_id, f)
                 if atm_observations is not None:
@@ -272,10 +273,24 @@ class WorldDB:
         return self.conn.execute(q, (limit, offset)).fetchall()
 
     def stats(self) -> dict:
+        from .stars import expected_systems_within
         c = self.conn
         row = lambda q: c.execute(q).fetchone()[0]
+        n_systems = row("SELECT COUNT(*) FROM systems")
+        # Absolute normalization: how much of the REAL population within
+        # dmax_pc this sample represents (see stars.expected_systems_within).
+        n_expected = expected_systems_within(self.dmax_pc)
+        frac = n_systems / n_expected if n_expected > 0 else 0.0
+        eec = row(
+            "SELECT COUNT(*) FROM planets p"
+            " JOIN observations o ON o.planet_id = p.id"
+            " WHERE o.observatory LIKE 'HWO%' AND o.detectable=1"
+            " AND p.in_hz=1 AND p.radius_re BETWEEN 0.8 AND 1.4")
         return {
-            "systems": row("SELECT COUNT(*) FROM systems"),
+            "systems": n_systems,
+            "dmax_pc": self.dmax_pc,
+            "expected_real_systems_within_dmax": round(n_expected),
+            "fraction_of_reality_sampled": round(frac, 4),
             "planets": row("SELECT COUNT(*) FROM planets"),
             "transiting_planets": row("SELECT COUNT(*) FROM planets WHERE transits=1"),
             "hz_planets": row("SELECT COUNT(*) FROM planets WHERE in_hz=1"),
@@ -301,10 +316,10 @@ class WorldDB:
                 " WHERE o.observatory LIKE 'HWO%' AND o.detectable=1"
                 " GROUP BY p.comp_class").fetchall()),
             # Exo-Earth candidates: HZ planets of 0.8-1.4 R_earth directly
-            # imageable by HWO (the mission's headline ">=25 exo-Earths" metric)
-            "hwo_exo_earth_candidates": row(
-                "SELECT COUNT(*) FROM planets p"
-                " JOIN observations o ON o.planet_id = p.id"
-                " WHERE o.observatory LIKE 'HWO%' AND o.detectable=1"
-                " AND p.in_hz=1 AND p.radius_re BETWEEN 0.8 AND 1.4"),
+            # imageable by HWO (the mission's headline ">=25 exo-Earths"
+            # metric). The _scaled value normalizes to the expected number of
+            # real systems within dmax_pc (equals the raw count when the
+            # population is a 1:1 neighborhood analog).
+            "hwo_exo_earth_candidates": eec,
+            "hwo_exo_earth_candidates_scaled": round(eec / frac, 1) if frac else 0.0,
         }

@@ -200,12 +200,19 @@ def test_hwo_albedo_tracks_atmosphere_class():
 def test_dmax_rescales_distance_without_touching_the_worlds():
     """The solar-neighborhood distance cap must only rescale distance and
     apparent magnitudes: same seed => identical star and planets otherwise."""
+    from exoverse.stars import _distance_cdf_unnorm
     far = generate_system(1234, "D-far")                # dmax 300 (default)
     near = generate_system(1234, "D-near", dmax_pc=30.0)
     assert near.star.distance_pc < 30.0
-    # Distance scales by exactly 1/10 (unless clamped at the 5 pc floor)
+    # Same underlying uniform draw => same CDF quantile at both caps
+    # (exact 1/10 rescaling no longer holds: the vertical disk falloff
+    # bends the 300 pc CDF). Skip when clamped at the 5 pc floor.
     if near.star.distance_pc > 5.0:
-        assert near.star.distance_pc == pytest.approx(far.star.distance_pc / 10)
+        q_near = (_distance_cdf_unnorm(near.star.distance_pc)
+                  / _distance_cdf_unnorm(30.0))
+        q_far = (_distance_cdf_unnorm(far.star.distance_pc)
+                 / _distance_cdf_unnorm(300.0))
+        assert q_near == pytest.approx(q_far, rel=1e-6)
     assert near.star.mass == far.star.mass
     assert near.star.teff == far.star.teff
     assert len(near.planets) == len(far.planets)

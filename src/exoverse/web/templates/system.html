@@ -57,9 +57,11 @@ this world re-generates bit-for-bit from its seed.</p>
         H={{ p.atm['scale_height_km']|num(0) }} km ·
         feature ~{{ p.atm['feature_ppm']|num(0) }} ppm
         (clouds ×{{ p.atm['cloud_factor']|num(2) }}) ·
+        A<sub>g</sub>={{ p.atm['geometric_albedo']|num(2) }} ·
         TSM={{ p.atm['tsm']|num(0) }}{% if p.atm['tsm_priority'] %} <strong>priority</strong>{% endif %}
         · ESM={{ p.atm['esm']|num(0) }}
-      {% else %}likely airless (cosmic shoreline){% endif %}</td></tr>
+      {% else %}likely airless (cosmic shoreline) ·
+        A<sub>g</sub>={{ p.atm['geometric_albedo']|num(2) }}{% endif %}</td></tr>
     {% endif %}
     {% if r['transits'] %}
     <tr><td>Transit</td>

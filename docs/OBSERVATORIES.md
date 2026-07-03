@@ -63,17 +63,39 @@ requirement-era and WILL change. Target launch: **2040s**.
     brightness-dependent post-processed floor
     **3e-11 · 10^(0.2·max(V−7, 0))** — systematics-limited 3e-11 on bright
     hosts, photon-limited degradation fainter than V ≈ 7.
-  - A_g by atmosphere class, anchored on solar-system bodies: h_he 0.50
-    (Jupiter 0.52, Saturn 0.47), h_he_rich 0.40 (Neptune 0.44), steam 0.35,
-    secondary 0.30 (cloudy Earth ~0.37; yield studies often assume 0.2),
-    airless 0.12 (Moon 0.11, Mars 0.15); Lambertian Φ(90°) = 1/π.
-    (Earth analog at 10 pc: C ≈ 1.7e-10 at 100 mas — comfortably detected,
-    as intended.)
+  - A_g drawn **per planet** from class- and temperature-dependent
+    distributions (`atmospheres.sample_geometric_albedo`), stored in the DB
+    (`atmospheres.geometric_albedo`); Lambertian Φ(90°) = 1/π. The old fixed
+    per-class values remain only as fallbacks for planets without a draw.
+    Distribution anchors (all V band):
+    - **H/He envelopes** follow the Sudarsky cloud sequence bracketed by
+      measurements: cold ammonia-cloud giants ~0.5 (Jupiter 0.52, Saturn
+      0.47, Neptune 0.44); a bright water-cloud regime near Teq ~ 250 K
+      (mean 0.65); clear alkali-absorbing atmospheres 700–1500 K are DARK —
+      the measured Kepler/CHEOPS/TESS hot-Jupiter population sits at
+      A_g ≈ 0.03–0.11 (TrES-2b < 0.04); ultra-hot silicate-cloud objects
+      recover ~0.3 (Kepler-7b 0.35). Lognormal ×~1.4 scatter, clip
+      [0.02, 0.85].
+    - **Secondary atmospheres**: dark branch N(0.24, 0.08) centered on
+      Earth's re-measured visual A_g of 0.242 (2026 phase-curve analysis;
+      classic yield studies assume a flat 0.2), plus a 22% Venus-like
+      branch N(0.65, 0.07) — a global cloud deck nearly triples the
+      reflected signal (Venus A_g ≈ 0.7).
+    - **Steam worlds**: no measurements exist; 0.30 lognormal, [0.08, 0.6].
+    - **Airless**: regolith-dark N(0.12, 0.05) (Moon 0.07, Mercury 0.14,
+      Mars 0.17), with a 15% icy-bright branch (mean 0.55; Europa 0.67,
+      Enceladus > 1) for Teq < 200 K.
+    (Earth analog at 10 pc with the branch means: C ≈ 1.4e-10 at 100 mas
+    for A_g = 0.24 — still comfortably detected; a Venus-branch twin
+    reaches ≈ 3.7e-10.)
 - **Headline metric**: `stats` reports `hwo_exo_earth_candidates` — HZ
   planets of 0.8–1.4 R⊕ that HWO can image — mirroring the Astro2020
-  "≥25 exo-Earths" goal (our count is per generated population, not a
-  mission-yield forecast: the generated volume extends to 300 pc while HWO
-  only reaches ~30 pc, so only ~0.1% of generated systems are even in range).
+  "≥25 exo-Earths" goal. The neighborhood population is generated at the
+  model-expected count of real systems within 30 pc (~7,100; see
+  `stars.expected_systems_within`), so its count reads as an absolute yield
+  estimate; `hwo_exo_earth_candidates_scaled` normalizes any other
+  population to reality (the 300 pc transit population contains almost no
+  HWO-reachable systems by construction).
 - **Not modeled**: spectroscopy/biosignature yield, exozodi confusion,
   orbital-phase scheduling (quadrature assumed), UV transit spectroscopy
   mode, multi-visit orbit determination.

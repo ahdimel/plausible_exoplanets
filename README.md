@@ -12,8 +12,9 @@ each world*. The output is a queryable SQLite database of worlds, each with
 rich validated metadata and explicit plausibility flags.
 
 **Project paper**: [docs/paper.html](docs/paper.html) — motivation, methods,
-validation, findings from the 120,000-system populations, and future
-directions (fully self-contained; open it in any browser).
+validation, findings from the 1,007,083-system populations (a 19% sample of
+the ~5.2M real systems within 300 pc plus a 1:1 solar-neighborhood analog),
+and future directions (fully self-contained; open it in any browser).
 
 ## Quick start
 
@@ -41,7 +42,12 @@ re-simulates without storing arrays.
 
 **Stars** — Kroupa (2001) IMF over 0.08–2.2 M☉; main-sequence L(M), R(M)
 scaling relations with scatter; T_eff from Stefan–Boltzmann; thin-disk
-metallicity distribution; distances from uniform local density (≤300 pc);
+metallicity distribution; distances from a disk-structure density model
+(uniform in the plane, exponential vertical falloff with 300 pc scale
+height) with an absolute normalization of 0.065 main-sequence systems/pc³
+(RECONS / Gaia GCNS) — so a population is an explicit random sample of the
+~5.2 million real systems within 300 pc (~7,100 within 30 pc), and `stats`
+reports the sampled fraction of reality;
 V/TESS/J magnitudes via Flower (1996)/Torres (2010) bolometric corrections and
 Pecaut & Mamajek (2013) colors; quadratic limb-darkening coefficients vs
 T_eff (Claret & Bloemen 2011-like).
@@ -68,8 +74,13 @@ Stellar noise is added in quadrature to every observatory's budget.
 steam, secondary CO₂/N₂, or airless via the Mars-normalized cosmic shoreline
 of Zahnle & Catling 2017), scale height, expected transmission feature with a
 random cloud/haze suppression factor, TSM and ESM metrics (Kempton+ 2018),
-and per-JWST-instrument spectroscopy scoring (transits needed for a 5σ
-feature detection, with a stellar-contamination noise floor).
+per-JWST-instrument spectroscopy scoring (transits needed for a 5σ
+feature detection, with a stellar-contamination noise floor), and a
+**per-planet V-band geometric albedo** drawn from class- and
+temperature-dependent distributions spanning the measured range — dark
+alkali-absorbing hot Jupiters (A_g 0.03–0.11) through bright ammonia/water
+cloud decks, a 22% Venus-like branch for secondary atmospheres, and an
+icy-bright branch for cold airless worlds (see docs/OBSERVATORIES.md).
 
 **Transits** — Winn (2010) geometry with full eccentricity corrections
 (impact parameter, T14/T23 durations, a-priori probability) and a
@@ -87,7 +98,7 @@ to ~1e-13 relative; equivalent to Mandel & Agol 2002).
 | JWST NIRSpec Prism | ~12 ppm/hr @ J=11, saturates J<10.5 | single targeted transit, SNR ≥ 5 |
 | Ground 1-m survey | 2 mmag + scintillation floor, 90 nights | SNR ≥ 7, ≥ 3 transits, depth > 1 mmag |
 | **Roman GBTDS** (2027+) | ~700 ppm/hr @ F146=16, 6×72 d seasons | SNR ≥ 7.1, ≥ 3 transits |
-| **HWO imaging** (2040s) | reflected light: C = A_g·Φ·(Rp/a)², 3e-11 floor, 60 mas IWA | host V<8, d<30 pc, resolved |
+| **HWO imaging** (2040s) | reflected light: C = A_g·Φ·(Rp/a)² with per-planet drawn A_g, floor 3e-11·10^(0.2·max(V−7,0)), 60 mas IWA | host V<11, d<30 pc, resolved, above floor |
 
 The two future facilities are documented — with sources and explicit
 "specs will evolve" caveats — in [docs/OBSERVATORIES.md](docs/OBSERVATORIES.md).
@@ -109,6 +120,13 @@ snapshot). `exoverse validate` then runs two checks:
    two-sample KS tests. Periods agree (p ≈ 0.9); host-star temperatures
    deliberately disagree (real surveys target FGK stars, our sample is
    IMF-weighted) — the report distinguishes matches from designed mismatches.
+3. **System-architecture comparison**: metrics that probe physics the
+   generator deliberately leaves out, so the synthetic population acts as a
+   *null model*: intra-system radius uniformity ("peas in a pod"), adjacent
+   period ratios (resonance pileups), transit multiplicity (the Kepler
+   dichotomy), and hot-Neptune-desert occupancy. Real-vs-synthetic residuals
+   on these metrics isolate formation/migration signatures that survey
+   selection alone cannot produce.
 
 ## Browser UI
 

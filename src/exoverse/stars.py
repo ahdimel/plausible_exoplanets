@@ -13,7 +13,18 @@ Physics grounding
 - Lifetime          : t_MS ~ 10 Gyr * (M/Msun) / (L/Lsun).
 - Metallicity       : [Fe/H] ~ N(-0.1, 0.2), clipped to [-1.0, +0.5]
                       (local thin-disk distribution, e.g. Hayden+ 2015).
-- Distance          : uniform stellar density -> p(d) ~ d^2, out to 300 pc.
+- Distance          : uniform density in the plane with an exponential
+                      vertical falloff exp(-|z|/300 pc) (thin-disk scale
+                      height), observer at the midplane. Below ~50 pc this
+                      is indistinguishable from p(d) ~ d^2; at 300 pc the
+                      sphere-averaged density is ~71% of the midplane value.
+                      Absolute normalization: 0.065 main-sequence systems
+                      per pc^3 (RECONS 10 pc census: 317 systems; Gaia GCNS:
+                      331,312 sources within 100 pc) -> ~5.2 million systems
+                      expected within 300 pc, ~7,100 within 30 pc. A
+                      generated population of N systems is a random 1-in-
+                      (N_expected/N) sample of that reality (see
+                      expected_systems_within()).
 - Bolometric corr.  : Flower (1996) polynomials as corrected by Torres (2010).
 - Colors            : coarse Teff -> (V-Ic), (V-J) lookup (Pecaut & Mamajek
                       2013 dwarf sequence, interpolated). QUESTIONABLE-free
@@ -41,6 +52,59 @@ from .constants import (
     AU, GYR, L_SUN, M_SUN, MBOL_SUN, PC, R_SUN, RHO_SUN, SIGMA_SB, TEFF_SUN,
 )
 from .flags import Flag, Severity
+
+
+# ----------------------------------------------------------------------------
+# Local stellar density and disk structure (absolute population normalization)
+# ----------------------------------------------------------------------------
+# Main-sequence *systems* per pc^3 near the Sun. Anchors: RECONS 10 pc census
+# (317 systems incl. WD/BD primaries -> ~0.065/pc^3 with MS primaries) and
+# Gaia GCNS (331,312 sources within 100 pc -> 0.079 sources/pc^3, ~0.065
+# systems/pc^3 after multiplicity). Uncertainty ~ +/-20%.
+LOCAL_MS_SYSTEM_DENSITY_PC3 = 0.065
+# Thin-disk exponential vertical scale height for the local FGKM mix. The
+# thick disk (~10% locally, h~900 pc) is neglected; the Sun's ~20 pc offset
+# from the midplane is neglected.
+DISK_SCALE_HEIGHT_PC = 300.0
+
+
+def _distance_cdf_unnorm(d_pc: float, h: float = DISK_SCALE_HEIGHT_PC) -> float:
+    """Unnormalized N(<d) for uniform in-plane density with an exponential
+    vertical falloff exp(-|z|/h), observer at the midplane.
+
+    The sphere-of-radius-r shell average of exp(-|z|/h) is
+    (h/r)(1 - exp(-r/h)), so N(<d) ~ integral of 4 pi r^2 (h/r)(1-e^(-r/h)) dr
+    = 4 pi h [d^2/2 - h^2 (1 - (1 + d/h) e^(-d/h))]. This function returns
+    the bracketed term times h (the 4 pi and density are applied by callers).
+    Limit h -> inf recovers the uniform d^3/3."""
+    x = d_pc / h
+    return h * (d_pc * d_pc / 2.0 - h * h * (1.0 - (1.0 + x) * math.exp(-x)))
+
+
+def expected_systems_within(dmax_pc: float) -> float:
+    """Model-expected number of real main-sequence systems within dmax_pc:
+    ~7,100 within 30 pc, ~5.2 million within 300 pc. Generated populations
+    are random subsamples (or, at N ~ expected, 1:1 analogs) of this count."""
+    return (4.0 * math.pi * LOCAL_MS_SYSTEM_DENSITY_PC3
+            * _distance_cdf_unnorm(dmax_pc))
+
+
+def sample_distance(u: float, dmax_pc: float) -> float:
+    """Invert the disk-structure distance CDF for a single uniform draw u.
+
+    Deterministic bisection (no extra rng draws), so it consumes exactly one
+    rng.random() exactly like the previous p(d) ~ d^2 draw: changing dmax_pc
+    still never shifts the random stream. Note dmax_pc no longer *linearly*
+    rescales the draw (the vertical falloff bends the CDF at large d)."""
+    target = u * _distance_cdf_unnorm(dmax_pc)
+    lo, hi = 0.0, dmax_pc
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if _distance_cdf_unnorm(mid) < target:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
 
 
 # ----------------------------------------------------------------------------
@@ -156,11 +220,12 @@ def ms_radius(mass: float) -> float:
 def generate_star(rng: np.random.Generator, dmax_pc: float = 300.0) -> Star:
     """Generate one plausible main-sequence star with validated metadata.
 
-    dmax_pc caps the distance draw (p(d) ~ d^2 out to dmax_pc). It scales a
-    single rng.random() call, so the random stream — and therefore every
-    other property of the star and its system — is identical for any value;
-    only the distance (and apparent magnitudes) change. Populations with
-    dmax_pc < 300 model the solar neighborhood for direct-imaging studies."""
+    dmax_pc caps the distance draw (disk-structure density out to dmax_pc,
+    see sample_distance). The draw consumes a single rng.random() call, so
+    the random stream — and therefore every other property of the star and
+    its system — is identical for any value; only the distance (and apparent
+    magnitudes) change. Populations with dmax_pc < 300 model the solar
+    neighborhood for direct-imaging studies."""
     mass = sample_kroupa_mass(rng)
     feh = float(np.clip(rng.normal(-0.1, 0.2), -1.0, 0.5))
 
@@ -172,7 +237,7 @@ def generate_star(rng: np.random.Generator, dmax_pc: float = 300.0) -> Star:
     ms_lifetime = 10.0 * mass / lum  # Gyr
     age = float(rng.uniform(0.5, min(12.0, ms_lifetime)))
 
-    dist = dmax_pc * float(rng.random() ** (1.0 / 3.0))  # p(d) ~ d^2
+    dist = sample_distance(float(rng.random()), dmax_pc)
     dist = max(dist, 5.0)
 
     mbol = MBOL_SUN - 2.5 * math.log10(lum)

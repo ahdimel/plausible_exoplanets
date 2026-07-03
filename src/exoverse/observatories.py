@@ -34,8 +34,9 @@ Future observatories (specs WILL evolve; see docs/OBSERVATORIES.md):
                   raw contrast ~1e-10, best post-processed sensitivity
                   ~3e-11 on bright stars, IWA ~3 lambda/D ~ 60 mas @ V.
                   We compute the planet's reflected-light contrast at
-                  quadrature (geometric albedo by atmosphere class) and its
-                  angular separation, and score it against a photon-limited
+                  quadrature (per-planet geometric albedo drawn in
+                  atmospheres.py; class-mean fallback) and its angular
+                  separation, and score it against a photon-limited
                   contrast floor that degrades for hosts fainter than V~7.
                   Evaluated for hosts V<11 within ~30 pc; the IWA and the
                   degraded floor - not a hard magnitude cut - decide the
@@ -183,10 +184,9 @@ HWO_VMAG_REF = 7.0            # floor is photon-limited fainter than this
 HWO_VMAG_LIMIT = 11.0         # fainter hosts: exposure times impractical
 HWO_DIST_LIMIT_PC = 30.0
 
-# V-band geometric albedo by atmosphere class, anchored on solar-system
-# bodies: Jupiter 0.52 / Saturn 0.47; Neptune 0.44 / Uranus 0.49; Earth
-# ~0.37 with clouds (exo-Earth yield studies often assume 0.2, so 0.30 is
-# a middle ground); Moon 0.11 / Mercury 0.14 / Mars 0.15.
+# Class-MEAN V-band geometric albedos — fallback only, used when a planet
+# carries no per-planet draw (atmospheres.sample_geometric_albedo is the
+# primary model: temperature-dependent, with measured-population scatter).
 HWO_GEOMETRIC_ALBEDO = {
     "h_he": 0.50,
     "h_he_rich": 0.40,
@@ -207,14 +207,19 @@ def hwo_contrast_floor(mag_v: float) -> float:
 def hwo_imaging(star: Star, planet: Planet) -> Observation:
     """Reflected-light direct-imaging detectability for HWO (2040s, notional).
 
-    Contrast at quadrature: C = A_g * Phi(90deg) * (Rp / a)^2 with geometric
-    albedo A_g from the planet's atmosphere class (HWO_GEOMETRIC_ALBEDO) and
-    Lambert phase Phi(90)=1/pi. Angular separation is the quadrature
-    projected separation a/d. Detection requires the contrast to clear the
+    Contrast at quadrature: C = A_g * Phi(90deg) * (Rp / a)^2 with the
+    planet's own drawn geometric albedo A_g (atmospheres.
+    sample_geometric_albedo; class-mean fallback if unset) and Lambert
+    phase Phi(90)=1/pi. Angular separation is the quadrature projected
+    separation a/d. Detection requires the contrast to clear the
     brightness-dependent post-processed floor within the working angles."""
     atm = planet.atmosphere
-    albedo = (HWO_GEOMETRIC_ALBEDO.get(atm.atm_class, HWO_DEFAULT_ALBEDO)
-              if atm is not None else HWO_DEFAULT_ALBEDO)
+    if atm is not None and getattr(atm, "geometric_albedo", 0.0) > 0.0:
+        albedo = atm.geometric_albedo
+    elif atm is not None:
+        albedo = HWO_GEOMETRIC_ALBEDO.get(atm.atm_class, HWO_DEFAULT_ALBEDO)
+    else:
+        albedo = HWO_DEFAULT_ALBEDO
     a_m = planet.a * AU
     contrast = albedo * (1.0 / math.pi) * (planet.radius * R_EARTH / a_m) ** 2
     sep_mas = planet.a / star.distance_pc * 1000.0   # a[AU]/d[pc] = sep["]

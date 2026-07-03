@@ -79,6 +79,7 @@ class Atmosphere:
     tsm: float
     esm: float
     tsm_priority: bool        # above Kempton+18 threshold for its size bin
+    geometric_albedo: float = 0.0   # V-band A_g, per-planet draw (0 = unset)
     flags: List[Flag] = field(default_factory=list)
 
     def add_flag(self, severity: Severity, rule: str, message: str) -> None:
@@ -92,6 +93,60 @@ class AtmosphereObservation:
     n_transits_5sigma: float   # inf -> impractical
     practical: bool            # <= MAX_PRACTICAL_TRANSITS and instrument usable
     note: str
+
+
+# V-band geometric-albedo model: mean A_g vs Teq for H/He envelopes,
+# following the Sudarsky/Marley cloud sequence bracketed by measurements:
+# cold ammonia-cloud giants (Jupiter 0.52, Saturn 0.47, Neptune 0.44 at
+# Teq ~ 50-130 K); predicted bright water-cloud regime near ~250 K; clear
+# alkali-absorbing atmospheres 700-1500 K are DARK (Kepler hot-Jupiter
+# population A_g ~ 0.03-0.11, TrES-2b < 0.04); ultra-hot silicate-cloud
+# objects recover moderate brightness (Kepler-7b ~ 0.35).
+_GIANT_ALBEDO_TEQ = [
+    (50.0, 0.47), (110.0, 0.52), (250.0, 0.65), (400.0, 0.30),
+    (700.0, 0.12), (1000.0, 0.06), (1500.0, 0.10), (2200.0, 0.30),
+]
+
+
+def _giant_albedo_mean(teq: float) -> float:
+    ts, alb = zip(*_GIANT_ALBEDO_TEQ)
+    return float(np.interp(teq, ts, alb))
+
+
+def sample_geometric_albedo(rng: np.random.Generator, atm_class: str,
+                            teq: float) -> float:
+    """Draw a per-planet V-band geometric albedo for reflected-light imaging.
+
+    Real albedos span far more than the solar-system anchors: measured hot
+    Jupiters are nearly black (A_g 0.03-0.11) while Venus reaches 0.70 and
+    icy surfaces (Europa 0.67, Enceladus > 1) are brighter still. Rocky
+    anchors: Kepler super-Earth statistics 0.16-0.30 (Demory 2014), Earth
+    0.24 (2026 phase-curve re-analysis; yield studies conventionally use
+    0.2), Mars 0.17, Mercury 0.14, Moon 0.07.
+
+    Exactly two rng draws are consumed for every planet regardless of class
+    (a mixture selector and a scatter deviate), keeping the random stream
+    layout uniform."""
+    u = float(rng.random())     # mixture / branch selector
+    z = float(rng.normal())     # scatter deviate
+
+    if atm_class in ("h_he", "h_he_rich"):
+        mean = _giant_albedo_mean(teq)
+        if atm_class == "h_he_rich":
+            mean *= 0.9   # metal-enriched envelopes run slightly darker
+        # Wide lognormal scatter: measured hot-Jupiter spread is ~x3
+        return float(np.clip(mean * math.exp(0.35 * z), 0.02, 0.85))
+    if atm_class == "steam":
+        # No measurements exist; water clouds plausibly bright, hazes dark
+        return float(np.clip(0.30 * math.exp(0.30 * z), 0.08, 0.60))
+    if atm_class == "secondary":
+        if u < 0.22:   # Venus-like global cloud deck
+            return float(np.clip(0.65 + 0.07 * z, 0.45, 0.80))
+        return float(np.clip(0.24 + 0.08 * z, 0.08, 0.45))
+    # airless: dark regolith, with an icy-bright branch for cold worlds
+    if teq < 200.0 and u < 0.15:
+        return float(np.clip(0.55 + 0.15 * z, 0.25, 0.90))
+    return float(np.clip(0.12 + 0.05 * z, 0.04, 0.30))
 
 
 def surface_gravity(planet: Planet) -> float:
@@ -134,6 +189,7 @@ def assign_atmosphere(rng: np.random.Generator, star: Star,
     delta_1h = 2.0 * h_m * rp_m / rs_m ** 2 * 1e6 if mu > 0 else 0.0
     cloud = float(rng.uniform(0.15, 1.0)) if mu > 0 else 1.0
     feature = delta_1h * FEATURE_SCALE_HEIGHTS * cloud
+    albedo = sample_geometric_albedo(rng, atm_class, planet.teq)
 
     atm = Atmosphere(atm_class=atm_class, mu=mu,
                      scale_height_km=h_m / 1000.0,
@@ -141,7 +197,8 @@ def assign_atmosphere(rng: np.random.Generator, star: Star,
                      cloud_factor=cloud,
                      tsm=compute_tsm(star, planet),
                      esm=compute_esm(star, planet),
-                     tsm_priority=False)
+                     tsm_priority=False,
+                     geometric_albedo=albedo)
     atm.tsm_priority = is_tsm_priority(planet, atm.tsm)
 
     # ---- flags -------------------------------------------------------------
@@ -160,6 +217,11 @@ def assign_atmosphere(rng: np.random.Generator, star: Star,
         atm.add_flag(Severity.INFO, "atmosphere.high_cloud_suppression",
                      f"Drawn cloud/haze factor {cloud:.2f}: features strongly "
                      "muted (cf. GJ 1214b); this is common and unpredictable")
+    if albedo >= 0.45 and atm_class in ("secondary", "airless"):
+        atm.add_flag(Severity.INFO, "atmosphere.high_albedo_draw",
+                     f"Drawn A_g={albedo:.2f}: Venus-like cloud deck or icy "
+                     "surface branch; strongly boosts reflected-light "
+                     "detectability and is unconstrained for exoplanets")
     if planet.teq > 2000 and atm_class in ("h_he", "h_he_rich"):
         atm.add_flag(Severity.INFO, "atmosphere.thermal_dissociation",
                      "Ultra-hot: molecular features partially dissociated; "

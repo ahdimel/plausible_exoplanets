@@ -27,20 +27,44 @@ inspectable with full metadata and plausibility flags.
 ## Commands
 
 ```bash
-.venv/bin/exoverse --db worlds.db generate --n 100000 --seed 42
-.venv/bin/exoverse --db neighborhood.db generate --n 20000 --seed 137 --dmax 30   # solar neighborhood (HWO)
+.venv/bin/exoverse --db worlds.db generate --n 1000000 --seed 42
+.venv/bin/exoverse --db neighborhood.db generate --n 7083 --seed 137 --dmax 30   # 1:1 solar neighborhood (HWO)
 .venv/bin/exoverse --db worlds.db stats | list | inspect <name> | lightcurve <name> <letter>
 .venv/bin/exoverse archive --refresh          # snapshot real-planet catalog -> data/
 .venv/bin/exoverse --db worlds.db validate    # audit vs real planets -> data/validation_report.json
 .venv/bin/exoverse --db worlds.db serve       # web UI on http://127.0.0.1:8321
 ```
 
-Two working datasets: `worlds.db` (100k systems, d<=300 pc — transit-survey
-statistics) and `neighborhood.db` (20k systems, d<=30 pc — direct-imaging /
-HWO statistics; a 300 pc sample starves HWO of targets, ~0.001% detectable).
-`--dmax` only rescales the distance draw (same rng stream), and is stored in
-DB meta so (seed, name) re-generation stays exact — pass `db.dmax_pc` to any
-new re-generation call site.
+Two working datasets: `worlds.db` (1M systems, d<=300 pc — a 19% random
+sample of the ~5.2M real systems in that volume; transit-survey statistics)
+and `neighborhood.db` (7,083 systems, d<=30 pc — a 1:1 analog of the real
+solar neighborhood: 7083 = round(stars.expected_systems_within(30)), so HWO
+counts are absolute yield estimates). Distances follow a disk-structure
+density (exponential z falloff, h=300 pc, n0=0.065 MS systems/pc^3 from
+RECONS/GCNS). `--dmax` only reshapes the one distance draw (same rng
+stream), is stored in DB meta so (seed, name) re-generation stays exact —
+pass `db.dmax_pc` to any new re-generation call site — but is NOT a linear
+rescale (CDF inversion in stars.sample_distance).
+
+## Workflow (token discipline)
+
+Dispatch a **sub-agent** for bulky, self-contained work so its intermediate
+context (screenshots, full-file reads, Chrome runs) never accumulates in the
+main thread — the main agent only sees the sub-agent's final report.
+
+- **Updating the findings paper (`docs/paper.html`)**: hand the whole job to a
+  `general-purpose` sub-agent. Instruct it to re-derive the numbers (see the
+  "update the project paper" skill in SKILLS.md), edit the prose + figure
+  arrays, verify light AND dark mode in headless Chrome, and report only what
+  it changed. Do NOT read full-page PNGs into the main context.
+- **Any graphics rendering or visual checking** (headless-Chrome screenshots
+  of the web UI or paper, image cropping, layout/figure verification):
+  delegate to a sub-agent (`Explore` if read-only "look and report",
+  `general-purpose` if it should also fix what it finds). It returns a
+  paragraph; the images stay in its throwaway context.
+- Sub-agents start COLD (they re-read this file + SKILLS.md), so use them for
+  genuinely separable chunks, not two-line tweaks. Keep CLAUDE.md/SKILLS.md
+  current so a cold sub-agent can orient from them alone.
 
 ## Architecture (src/exoverse/)
 
@@ -56,16 +80,16 @@ mid-sequence, it breaks reproducibility of every stored world) →
 |---|---|---|
 | `constants.py` | CODATA/IAU constants, SI | |
 | `flags.py` | Flag(severity, rule, message); severities INFO / QUESTIONABLE / INVALID | INVALID ⇒ resample; never persisted. QUESTIONABLE ⇒ kept + recorded. This is the core "plausibility" mechanism. |
-| `stars.py` | Kroupa IMF (0.08–2.2 M☉), MS scaling relations, Teff via Stefan-Boltzmann, Flower/Torres BC_V, Pecaut-Mamajek colors, Claret-like limb darkening | Single MS stars only (no binaries/evolution — flagged). Distances ≤300 pc, p(d)∝d². |
+| `stars.py` | Kroupa IMF (0.08–2.2 M☉), MS scaling relations, Teff via Stefan-Boltzmann, Flower/Torres BC_V, Pecaut-Mamajek colors, Claret-like limb darkening, disk-structure distances + absolute density normalization | Single MS stars only (no binaries/evolution — flagged). Distance: exponential z falloff (h=300 pc), one rng draw inverted by bisection (sample_distance). expected_systems_within() anchors reality (0.065 sys/pc³): ~5.2M within 300 pc, 7,083 within 30 pc. |
 | `stellar_noise.py` | granulation (ν_max scaling), p-modes, spot variability (gyrochronology Prot~√age), M-dwarf flares | Chromatic: BAND_FACTORS blue 1.0 / TESS 0.75 / NIR 0.40 (Rackham+18). Coefficients are population-level Kepler calibrations. |
 | `planets.py` | occurrence-shaped periods (Petigura+13) & radii (Fulton+17 valley), metallicity-scaled giants, probabilistic M-R, hard validity rules | INVALID rules: >13 Mjup, denser than pure iron (Zeng+16 R=0.78·M^0.27), ρ<0.03 g/cc, inside Roche/1.5 R*. |
-| `atmospheres.py` | class (h_he / h_he_rich / steam / secondary / airless), scale height, TSM/ESM (Kempton+18), JWST spectroscopy scoring | Cosmic shoreline is **Mars-normalized**: I_crit = 10.5·(v_esc/v_earth)⁴ — normalizing through Earth puts Earth on the knife's edge (bug we fixed). SPECTRAL_BIN_PENALTY=√5 calibrated to real K2-18b-class results. |
+| `atmospheres.py` | class (h_he / h_he_rich / steam / secondary / airless), scale height, TSM/ESM (Kempton+18), JWST spectroscopy scoring, per-planet V-band geometric albedo | Cosmic shoreline is **Mars-normalized**: I_crit = 10.5·(v_esc/v_earth)⁴ — normalizing through Earth puts Earth on the knife's edge (bug we fixed). SPECTRAL_BIN_PENALTY=√5 calibrated to real K2-18b-class results. Albedo draws (sample_geometric_albedo) are Teq-dependent w/ measured anchors (hot Jupiters DARK 0.03–0.11; 22% Venus branch on secondary; icy branch on cold airless) and consume exactly 2 rng draws for every class — keep that invariant. |
 | `system.py` | assembly; pair stability: orbit crossing ⇒ INVALID, Δ<2√3 mutual Hill radii ⇒ INVALID (Gladman), Δ<9 ⇒ QUESTIONABLE (Pu & Wu) | Inclinations may exceed 90° (mirror-equivalent); clipping at 90 creates a fake b=0 pileup (bug we fixed). |
 | `transits.py` | Winn 2010 geometry incl. eccentricity factors; limb-darkened light curve by per-annulus integration over [z−k, z+k] only | Grid scaled to planet size ⇒ accuracy independent of k (~1e-13 vs analytic). A fixed whole-disk grid gave 20% errors for Earth-size planets (bug we fixed). |
-| `observatories.py` | TESS, Kepler(archival), JWST NIRISS/NIRSpec, ground 1-m, **Roman GBTDS**, **HWO imaging**. σ_total² = σ_instr² + σ_stellar² | Roman/HWO specs are requirement-era, WILL change → docs/OBSERVATORIES.md is the source of truth w/ dates+links. Roman rows mean "if this system were in a Roman bulge field". |
+| `observatories.py` | TESS, Kepler(archival), JWST NIRISS/NIRSpec, ground 1-m, **Roman GBTDS**, **HWO imaging**. σ_total² = σ_instr² + σ_stellar² | Roman/HWO specs are requirement-era, WILL change → docs/OBSERVATORIES.md is the source of truth w/ dates+links. Roman rows mean "if this system were in a Roman bulge field". HWO uses the planet's stored geometric_albedo (class-mean fallback); its detection rule has NO integration-time budget, so yields are geometry/floor-limited — albedo moves contrast margins, not counts. |
 | `archive.py` | real-catalog client: NASA Exoplanet Archive TAP primary, exoplanet.eu CSV fallback; canonical snapshot in data/ | NASA TAP served ORA errors AND HTML-with-HTTP-200 maintenance pages (2026-07-02) → response must start with `pl_name` and have >3000 rows. exoplanet.eu `mass` silently contains upper limits → provenance "measured" only if errors imply >2σ. |
-| `validate.py` | (1) run real planets through our INVALID rules; (2) selection-matched KS: synthetic Kepler-DETECTABLE vs real transit-discovered | Never compare raw synthetic vs raw archive — forward-model the selection. Expected residuals: ~4% deuterium violations = real transiting brown dwarfs; ~3% iron = low-SNR masses; host-Teff mismatch is BY DESIGN (IMF vs FGK targeting). |
-| `database.py` | SQLite schema v2: systems/planets/observations/atmospheres/atm_observations/flags + meta(schema) | Schema version checked on open; on change, bump SCHEMA_VERSION and regenerate (no migrations — DBs are cheap to rebuild). n_transits_5sigma = -1 encodes infinity. |
+| `validate.py` | (1) run real planets through our INVALID rules; (2) selection-matched KS: synthetic Kepler-DETECTABLE vs real transit-discovered; (3) architecture null-model comparisons (compare_structure) | Never compare raw synthetic vs raw archive — forward-model the selection. Expected residuals: ~4% deuterium violations = real transiting brown dwarfs; ~3% iron = low-SNR masses; host-Teff mismatch is BY DESIGN (IMF vs FGK targeting). Structure metrics (peas-in-a-pod, period-ratio resonances, Kepler dichotomy, hot-Neptune desert) are SUPPOSED to disagree: synthetic = no-formation-physics null, the residual is the science. |
+| `database.py` | SQLite schema v3: systems/planets/observations/atmospheres(+geometric_albedo)/atm_observations/flags + meta(schema) | Schema version checked on open; on change, bump SCHEMA_VERSION and regenerate (no migrations — DBs are cheap to rebuild). n_transits_5sigma = -1 encodes infinity. stats() reports expected_real_systems_within_dmax + fraction_of_reality_sampled. |
 | `web/` | Flask app (`create_app(db_path, data_dir)`), Jinja templates, server-rendered SVG charts in `charts.py` | Read-only over the DB (deployable later). Light curves re-simulated from (seed, name) on request. Charts follow the dataviz method: CSS-variable palette, light+dark, fixed class→color slots in `CLASS_SLOTS`, hover via data-tip. |
 
 ## Non-obvious invariants
@@ -82,38 +106,43 @@ mid-sequence, it breaks reproducibility of every stored world) →
 
 ## Where the last session left off / natural next steps
 
-- Working datasets: worlds.db (100k, seed 42) + neighborhood.db (20k,
-  seed 137, dmax 30 pc). HWO model upgraded: per-atmosphere-class geometric
-  albedo, photon-limited contrast floor 3e-11*10^(0.2*(V-7)), V<11
-  evaluation envelope; stats now report hwo_exo_earth_candidates (HZ,
-  0.8-1.4 Re). Neighborhood run: 522 HWO detections, 44 EECs — scaled to
-  the real ~10k stars within 30 pc that's ~22 exo-Earths, matching the
-  Astro2020 ">=25" goal. Dominant EEC loss: M-dwarf hosts (79% too faint,
-  V>=11) then IWA (20%); EEC hosts come out K>G>F, no M.
-- Validation at 100k: audit residuals unchanged (3.8% deuterium = brown
-  dwarfs, 2.7% iron); Kepler-detectable radius median refined to 0.316 dex
-  (0.338 on the 10k subset — sample size, not a regression).
-- Project paper: `docs/paper.html` — self-contained HTML (motivation, goals,
-  validation, findings, researched future directions). Its figures/numbers
-  are HARDCODED snapshots of the 2026-07-02 populations; if you regenerate
-  either DB with different physics, the paper's numbers must be re-derived
-  and updated by hand (see SKILLS.md).
-- Known model deficiency (found at 10k scale, still present): the INTRINSIC
-  radius distribution has no dip at 1.7-2.0 Re — the Fulton valley is
-  smeared flat by the two wide lognormal peaks in
-  `planets.py::sample_small_radius`. Top candidate physics fix. (The
-  DETECTED population still matches real surveys well enough for KS.)
-- Candidate research directions (paper section 5, with literature refs):
-  (1) survey trade studies / yield forecasting (PLATO arXiv:2407.15917,
-  Roman arXiv:2305.16204); (2) HWO IWA-vs-contrast-floor design trades +
-  exozodi + multi-visit scheduling (TSS25 target list arXiv:2509.20544);
-  (3) closed-loop occurrence-rate inference validation (inject synthetic
-  universe -> modeled survey -> eta-Earth pipeline -> check recovery);
-  (4) exporting labeled light-curve corpora for ML vetting
-  (arXiv:2507.19520); (5) public web deploy of the read-only UI.
-- Open scope: N-body verification of packed multis, binary hosts, TTVs,
-  radiative-transfer spectra instead of scale-height heuristics, refreshing
-  Roman/HWO specs as the missions evolve (docs/OBSERVATORIES.md has "last
-  researched" dates).
+- v0.3 (2026-07-02): three upgrades landed together, ALL worlds regenerated
+  (schema v3). (1) Per-planet V-band geometric albedo
+  (atmospheres.sample_geometric_albedo): Teq-dependent Sudarsky-like curve
+  for H/He (hot Jupiters dark 0.03-0.11, cold giants ~0.5), 22% Venus
+  branch for secondary, icy branch for cold airless; stored in DB, used by
+  hwo_imaging. (2) Disk-structure distances + absolute normalization:
+  n0=0.065 MS systems/pc^3, h=300 pc → 5.2M real systems within 300 pc,
+  7,083 within 30 pc (stars.expected_systems_within). (3) Architecture
+  null-model comparisons in validate (compare_structure).
+- Working datasets: worlds.db (1M, seed 42; 19% sample of reality, ~2.1 GB)
+  + neighborhood.db (7,083, seed 137, dmax 30 — exact 1:1 solar
+  neighborhood). Headline results: HWO images 209 planets, 19 EECs
+  (absolute yield, vs Astro2020 >=25); EEC loss budget 79% host-too-faint /
+  19% inside IWA; yield is IWA-DOMINATED: 60→45 mas triples to 48, 30 mas
+  gives 99, while 3x deeper floor or V<12.5 envelope adds ZERO (same stars).
+  Flat A_g=0.2 vs drawn albedos changes counts by ~1% (no exposure-time
+  budget in the detection rule — that's WHY; adding one is the top HWO-model
+  next step, then exozodi + multi-visit).
+- Structure findings at 1M (validate → §4.5 of paper): real peas-in-a-pod
+  median |dlogR| 0.121 vs null 0.175; ~2x real pileup wide of 3:2/2:1;
+  singles-per-multi 4.1 real vs 5.5 null (dichotomy metric entangled with
+  size uniformity — null overproduces singles); desert occupancy 2.1% real
+  vs 3.7% null. KS p-values collapse at n~25k: watch D, not p.
+- Validation at 1M: audit residuals unchanged (3.8% deuterium, 2.7% iron);
+  Kepler-detectable radius median 0.313 dex (n=25,092); log-period D=0.074.
+- Project paper `docs/paper.html` updated to v0.3 (new §4.4 IWA trade +
+  fig4, §4.5 architecture table); numbers are HARDCODED snapshots — see
+  SKILLS.md for the re-derivation recipe. Verified light+dark via headless
+  Chrome.
+- Known model deficiency (still present): the INTRINSIC radius distribution
+  has no dip at 1.7-2.0 Re — Fulton valley smeared flat in
+  `planets.py::sample_small_radius`. Top candidate physics fix. Related new
+  target: give multis correlated radii (peas-in-a-pod knob) so the §4.5
+  null can be dialed between "no memory" and "full memory".
+- Density-model caveats (documented in stars.py): n0 uncertain ±20%;
+  single-h thin disk (no thick disk, Sun's z-offset ignored). A future
+  full-reality 300 pc run is `generate --n 5199422` (~45 min, ~11 GB) and
+  keeps the current 1M worlds as an exact prefix.
 - NASA TAP may recover: `exoverse archive --refresh --prefer nasa` will then
   produce a cleaner audit than exoplanet.eu (true mass provenance flags).

@@ -204,9 +204,9 @@
       <h1>The Worlds Surveys Don&rsquo;t See</h1>
       <p class="subtitle">A physics-validated synthetic exoplanet population for measuring what transit surveys and future observatories miss</p>
       <div class="meta">
-        <span><b>Populations</b> 120,000 systems, 263,367 planets</span>
+        <span><b>Populations</b> 1,007,083 systems, 2,212,734 planets</span>
         <span><b>Instruments</b> TESS · Kepler · JWST · Roman · HWO</span>
-        <span><b>Status</b> working prototype, v0.2</span>
+        <span><b>Status</b> working prototype, v0.3</span>
       </div>
     </div>
   </header>
@@ -219,21 +219,27 @@
       <em>exoverse</em> inverts the problem. Instead of starting from what was detected, it generates
       the full spectrum of plausible planetary systems bottom-up — from stellar physics and measured
       occurrence statistics — then observes each world with modeled instruments, real and future.
-      The gap between what exists in the synthetic universe and what its instruments recover is a
-      direct measurement of survey selection effects. In a 100,000-system population we find that
-      99% of habitable-zone rocky planets are invisible to every transit survey modeled, purely by
-      geometry. A companion 20,000-system solar-neighborhood population gives the Habitable Worlds
-      Observatory a realistic target field: it images 522 planets, including 44 habitable-zone
-      Earth-size candidates — which scales to ≈22 exo-Earths for the real solar neighborhood,
-      closely matching the mission&rsquo;s Astro2020 design goal of 25, without being tuned to it.
+      Version 0.3 makes the synthetic universe an explicit sample of the real one: distances follow
+      the Galactic thin disk&rsquo;s vertical structure with an absolute density normalization
+      (~5.2 million systems truly exist within 300&nbsp;pc), the main population grows to
+      1,000,000 systems (a 19% sample of that reality), and a companion population is a 1:1 analog
+      of the actual solar neighborhood — 7,083 systems within 30&nbsp;pc, so mission yields read as
+      absolute predictions. Reflected-light albedos are now drawn per planet from
+      temperature-dependent distributions spanning the measured range, from nearly-black hot
+      Jupiters to Venus-bright cloud decks. In this universe, 99% of habitable-zone rocky planets
+      remain invisible to every transit survey modeled, purely by geometry; the Habitable Worlds
+      Observatory images 209 planets, including 19 habitable-zone Earth-size candidates — just
+      below its Astro2020 goal of 25 — and its exo-Earth yield turns out to be limited almost
+      entirely by inner working angle, not by contrast floor or host brightness: halving the
+      60&nbsp;mas working angle quintuples the yield, while a 3&times; deeper floor gains nothing.
     </p>
   </div>
 
   <div class="statband sans">
-    <div class="stat"><div class="v">120,000</div><div class="k">systems across two populations</div></div>
+    <div class="stat"><div class="v">1,007,083</div><div class="k">systems — a 19% sample of the ~5.2M real systems within 300 pc, plus a 1:1 solar neighborhood</div></div>
     <div class="stat"><div class="v">99<small>%</small></div><div class="k">of HZ rocky planets invisible to transit surveys</div></div>
-    <div class="stat"><div class="v">44</div><div class="k">exo-Earth candidates imaged by HWO (synthetic 30 pc field)</div></div>
-    <div class="stat"><div class="v">≈22 <small>vs 25</small></div><div class="k">scaled exo-Earth yield vs the Astro2020 goal</div></div>
+    <div class="stat"><div class="v">19 <small>vs 25</small></div><div class="k">exo-Earths HWO images in the 1:1 neighborhood — an absolute yield vs the Astro2020 goal</div></div>
+    <div class="stat"><div class="v">5×</div><div class="k">exo-Earth yield from halving the inner working angle; a 3× deeper contrast floor gains zero</div></div>
   </div>
 
   <!-- ================================================================ -->
@@ -264,9 +270,10 @@
     <p>The project has three standing goals:</p>
     <ul>
       <li><b>Generate</b> plausible planetary systems from physics upward — a Kroupa mass function
-        for the stars, main-sequence scaling relations, occurrence-shaped periods and radii
-        (including the Fulton radius valley), probabilistic mass–radius relations, orbital-stability
-        screening, stellar noise, and atmosphere assignment.</li>
+        for the stars, disk-structure distances normalized to the real local density,
+        main-sequence scaling relations, occurrence-shaped periods and radii (including the Fulton
+        radius valley), probabilistic mass–radius relations, orbital-stability screening, stellar
+        noise, atmosphere assignment, and per-planet reflected-light albedos.</li>
       <li><b>Observe</b> every world with modeled instruments spanning past, present, and future:
         Kepler (archival), TESS, JWST transit spectroscopy, ground-based 1-m surveys, the Roman
         Space Telescope&rsquo;s bulge survey, and the Habitable Worlds Observatory&rsquo;s
@@ -283,18 +290,27 @@
       labeled, because &ldquo;plausible but uncertain&rdquo; is exactly where the interesting
       science lives. Second, <em class="term">every world is reproducible</em>: a system regenerates
       bit-for-bit from its random seed, so light curves are never stored — they are re-derived on
-      demand. Third, <em class="term">the database is the product</em>: 120,000 systems, each
-      individually inspectable through a CLI and a web interface, with full metadata down to
-      limb-darkening coefficients and cloud-suppression factors.
+      demand. Third, <em class="term">the database is the product</em>: over a million systems,
+      each individually inspectable through a CLI and a web interface, with full metadata down to
+      limb-darkening coefficients, per-planet albedos, and cloud-suppression factors.
     </p>
-    <h3 class="sub">2.1 &ensp;Two populations, two questions</h3>
+    <h3 class="sub">2.1 &ensp;Two populations, calibrated to the real sky</h3>
     <p>
-      Version 0.2 maintains two datasets. The main population — 100,000 systems with host stars out
-      to 300&nbsp;pc — answers transit-survey questions, where the observable volume is deep. But a
-      deep volume starves a direct-imaging mission: only ~0.1% of its systems fall within the
-      Habitable Worlds Observatory&rsquo;s ~30&nbsp;pc reach. So a second population caps host
-      distance at 30&nbsp;pc — 20,000 systems representing the solar neighborhood — generated by the
-      same physics with a single rescaled distance draw, leaving every other property untouched.
+      How many systems <em>should</em> a 300&nbsp;pc population contain? Anchoring the local
+      density on the RECONS 10&nbsp;pc census and Gaia&rsquo;s Catalogue of Nearby Stars
+      (0.065 main-sequence systems per pc³) and letting density fall off vertically with the thin
+      disk&rsquo;s ~300&nbsp;pc scale height, the answer is ≈5.2 million — the earlier 100,000-system
+      run sampled just 2% of them. Version 0.3 therefore (a) replaces the uniform-density distance
+      draw with the disk-structure one, (b) grows the main population tenfold to 1,000,000 systems —
+      a 19% random sample of reality, and a bit-exact prefix of a future full 5.2-million run, since
+      seeds form a stream — and (c) reports in every stats output what fraction of reality a
+      population represents.
+    </p>
+    <p>
+      The companion population goes further: within 30&nbsp;pc the same density model expects 7,083
+      systems, so the neighborhood dataset is generated at <em>exactly</em> that count. It is a 1:1
+      analog of the real solar neighborhood — when the modeled Habitable Worlds Observatory images
+      19 exo-Earth candidates there, that number is an absolute yield estimate, no scaling required.
     </p>
   </section>
 
@@ -325,13 +341,15 @@
     </div>
     <p>
       No real planet violates a rule for a reason the generator can&rsquo;t account for — the two
-      nonzero rows are known catalog artifacts, and their rates are stable from the earlier
-      10,000-system run to 100,000. On the population side, the period distribution of synthetic
-      Kepler-detectable planets tracks real discoveries closely (median log-period 0.98 vs 0.90),
-      while the host-temperature comparison fails by construction — real surveys target Sun-like
-      stars, whereas exoverse samples the true, M-dwarf-dominated mass function. That deliberate
-      failure is the point: it demonstrates the selection function is being modeled rather than
-      inherited.
+      nonzero rows are known catalog artifacts, and their rates are stable from the 10,000-system
+      era through 1,000,000. On the population side, the period distribution of 25,092 synthetic
+      Kepler-detectable planets tracks real discoveries closely (median log-period 0.98 vs 0.90,
+      KS&nbsp;D&nbsp;=&nbsp;0.07), while the host-temperature comparison fails by construction
+      (D&nbsp;=&nbsp;0.58) — real surveys target Sun-like stars, whereas exoverse samples the true,
+      M-dwarf-dominated mass function. That deliberate failure is the point: it demonstrates the
+      selection function is being modeled rather than inherited. One statistical note at this
+      scale: with 25,000 detections, KS <em>p</em>-values collapse to zero for even trivial
+      differences, so the D statistic — not <em>p</em> — is the meaningful health metric.
     </p>
   </section>
 
@@ -341,39 +359,40 @@
 
     <h3 class="sub">4.1 &ensp;Scale makes rare regimes measurable</h3>
     <p>
-      Growing the population tenfold (the first 10,000 worlds are preserved exactly — seeds are a
-      stream) populated regimes that were statistical noise before: 671 ultra-short-period planets,
-      47 mega-Earths, 18 ultra-hot worlds, and 4 super-puffs now exist in queryable numbers.
-      Detection counts scale linearly with population size, confirming the smaller run wasn&rsquo;t
-      a fluke, and the Kepler-detectable radius median refined from 0.34 to 0.32&nbsp;dex — a
-      sample-size sharpening, since the generation physics is unchanged.
+      At a million systems, regimes that were statistical noise at 10,000 are now populations in
+      their own right: 6,787 ultra-short-period planets, 390 mega-Earths, 188 ultra-hot worlds, and
+      37 super-puffs exist in queryable numbers, each with named, inspectable members. Detection
+      counts continue to scale linearly with population size, and the Kepler-detectable radius
+      median sits at 0.31&nbsp;dex on a 25,092-planet detected sample. (The v0.3 physics changes —
+      disk-structure distances and per-planet albedos — regenerated every world; within v0.3, the
+      million systems are a bit-exact prefix of any future, larger run.)
     </p>
   </section>
 
   <figure class="viz" id="fig1">
-    <div class="t">Detections by observatory — 100,000-system population</div>
-    <div class="s">Planets recovered per modeled instrument, of 3,257 transiting (219,491 total)</div>
+    <div class="t">Detections by observatory — 1,000,000-system population</div>
+    <div class="s">Planets recovered per modeled instrument, of 32,096 transiting (2,197,155 total)</div>
     <div data-chart="fig1"></div>
     <details class="tbl"><summary>View data as table</summary>
       <table><thead><tr><th>Observatory</th><th>Detections</th></tr></thead><tbody id="fig1t"></tbody></table>
     </details>
   </figure>
   <figcaption class="cap"><b>Figure 1.</b> The same synthetic universe seen through seven instruments.
-    Long-baseline space photometry (Roman, Kepler) and targeted JWST spectroscopy recover thousands;
-    a single TESS sector recovers 72. The Habitable Worlds Observatory recovers exactly one — not
+    Long-baseline space photometry (Roman, Kepler) and targeted JWST spectroscopy recover tens of
+    thousands; a single TESS sector recovers 852. The Habitable Worlds Observatory recovers 27 — not
     because the model is broken, but because a 300&nbsp;pc survey volume contains almost no stars
-    within its ~30&nbsp;pc imaging reach. Fixing that mismatch motivates the neighborhood population of §4.3.</figcaption>
+    within its ~30&nbsp;pc imaging reach. That mismatch is what the 1:1 neighborhood population of §4.3 fixes.</figcaption>
 
   <figure class="viz" id="fig2">
     <div class="t">The habitable-zone blind spot</div>
-    <div class="s">Habitable-zone rocky planets in the 100,000-system population, on a shared linear scale</div>
+    <div class="s">Habitable-zone rocky planets in the 1,000,000-system population, on a shared linear scale</div>
     <div data-chart="fig2"></div>
     <details class="tbl"><summary>View data as table</summary>
       <table><thead><tr><th>Stage</th><th>Planets</th></tr></thead><tbody id="fig2t"></tbody></table>
     </details>
   </figure>
-  <figcaption class="cap"><b>Figure 2.</b> Of 17,141 habitable-zone rocky planets that exist in the
-    synthetic universe, 202 (1.2%) happen to transit, and 171 (1.0%) are recoverable by any modeled
+  <figcaption class="cap"><b>Figure 2.</b> Of 171,701 habitable-zone rocky planets that exist in the
+    synthetic universe, 1,705 (1.0%) happen to transit, and 1,500 (0.9%) are recoverable by any modeled
     transit instrument. The bars are drawn to a common scale deliberately: the sliver <em>is</em> the finding —
     99% of the most interesting worlds are geometrically invisible to the method that built our catalogs.</figcaption>
 
@@ -381,11 +400,14 @@
     <h3 class="sub">4.2 &ensp;Transit surveys are blind to 99% of habitable-zone rocky worlds</h3>
     <p>
       Figure 2 states the project&rsquo;s central result at population scale. The transit
-      method&rsquo;s geometric filter removes 98.8% of habitable-zone rocky planets before noise or
+      method&rsquo;s geometric filter removes 99.0% of habitable-zone rocky planets before noise or
       cadence even enter the picture, and instrument thresholds remove a further sliver. Statements
       like &ldquo;transit probability is low&rdquo; are textbook; what a synthetic population adds
-      is the ability to hold the missing 16,970 worlds in a database — each with a name, a host
-      star, an atmosphere class, and the specific reason it was missed.
+      is the ability to hold the missing 170,000 worlds in a database — each with a name, a host
+      star, an atmosphere class, and the specific reason it was missed. And because the population
+      is now normalized to the real stellar density, the statement extends to the sky itself:
+      within 300&nbsp;pc of the Sun, the model implies roughly <em>900,000</em> habitable-zone
+      rocky planets exist, of which transit geometry offers up fewer than 9,000.
     </p>
 
     <h3 class="sub">4.3 &ensp;An exo-Earth budget for the Habitable Worlds Observatory</h3>
@@ -395,16 +417,23 @@
       potentially habitable exo-Earths<sup class="r"><a href="#r6">[6]</a></sup>. exoverse models it
       with a coronagraphic contrast floor of 3×10<sup>−11</sup> that degrades photon-limited for
       hosts fainter than V≈7, working angles of 60–500&nbsp;mas, and reflected-light contrast
-      computed from a geometric albedo assigned by atmosphere class — Jupiter-like 0.50 down to
-      airless 0.12, anchored on solar-system bodies.
+      computed from each planet&rsquo;s <em class="term">own</em> geometric albedo. Where v0.2
+      assigned one fixed albedo per atmosphere class, v0.3 draws A<sub>g</sub> per planet from
+      temperature-dependent distributions spanning the measured range: clear alkali-absorbing hot
+      Jupiters are nearly black (the Kepler/CHEOPS population sits at 0.03–0.11, TrES-2b below
+      0.04), cold ammonia-cloud giants reflect ~0.5, secondary atmospheres center on Earth&rsquo;s
+      re-measured 0.24 with a 22% Venus-like branch near 0.65, and cold airless worlds get an
+      icy-bright branch (Europa-class). The classic yield-study convention is a flat 0.2 for
+      everything; the real range spans a factor of ~20.
     </p>
     <p>
-      In the 20,000-system neighborhood population, HWO images 522 planets. Crucially, 44 of them
-      are <em class="term">exo-Earth candidates</em> — habitable-zone planets of 0.8–1.4 Earth
-      radii. Because the synthetic field holds roughly twice as many stars as the real solar
-      neighborhood within 30&nbsp;pc, the scaled prediction is ≈22 exo-Earths — landing within
-      striking distance of the mission&rsquo;s ≥25 goal from independent physics, with no tuning
-      toward that number.
+      In the 7,083-system population — a 1:1 analog of the real solar neighborhood — HWO images
+      209 planets. Crucially, 19 of them are <em class="term">exo-Earth candidates</em> —
+      habitable-zone planets of 0.8–1.4 Earth radii. Because the population is no longer an
+      arbitrary sample size, that count needs no scaling: it <em>is</em> the model&rsquo;s yield
+      estimate, and it lands just below the mission&rsquo;s ≥25 goal from independent physics,
+      with no tuning toward that number. The shortfall itself is informative, as §4.4 shows: the
+      yield is sitting on the steep part of the inner-working-angle curve.
     </p>
   </section>
 
@@ -412,12 +441,12 @@
     <div class="duo">
       <div>
         <div class="t">Where the exo-Earths go</div>
-        <div class="s">2,545 HZ Earth-size planets within 30 pc, by HWO outcome</div>
+        <div class="s">862 HZ Earth-size planets in the 1:1 neighborhood, by HWO outcome</div>
         <div data-chart="fig3a"></div>
       </div>
       <div>
         <div class="t">Detected exo-Earth hosts by spectral type</div>
-        <div class="s">All 44 detections orbit F, G, or K stars</div>
+        <div class="s">All 19 detections orbit F, G, or K stars</div>
         <div data-chart="fig3b"></div>
       </div>
     </div>
@@ -427,7 +456,7 @@
   </figure>
   <figcaption class="cap"><b>Figure 3.</b> The exo-Earth loss budget. Left: 79% of habitable-zone
     Earth-size planets within 30&nbsp;pc orbit hosts too faint to image (V ≥ 11 — overwhelmingly M
-    dwarfs), and another 20% sit inside the 60&nbsp;mas inner working angle, where an M dwarf&rsquo;s
+    dwarfs), and another 19% sit inside the 60&nbsp;mas inner working angle, where an M dwarf&rsquo;s
     close-in habitable zone hides. Right: the survivors orbit K, G, and F stars — independently
     reproducing the FGK-dominated target lists real HWO planning has converged on<sup class="r"><a href="#r5">[5]</a></sup>.</figcaption>
 
@@ -436,9 +465,96 @@
       The loss accounting explains <em>why</em> M dwarfs — the most common stars — contribute
       nothing: their habitable zones are angularly too small to resolve and their photospheres too
       faint to post-process against, a conclusion that emerges here from the noise model rather than
-      from an imposed target list. The atmosphere-class albedo also leaves a visible fingerprint:
-      only 5 of 1,051 airless worlds are ever imaged, while cloudy secondary-atmosphere and steam
-      worlds dominate the detections.
+      from an imposed target list. The per-planet albedo leaves its own fingerprint: only 3 of 400
+      airless worlds are ever imaged, while cloudy steam and secondary-atmosphere worlds dominate
+      the detections (183 of 209) — and Venus-branch cloud decks are over-represented among the
+      imaged secondaries (27%, against 22% in the population), the reflected-light analog of a
+      selection effect.
+    </p>
+
+    <h3 class="sub">4.4 &ensp;The exo-Earth yield is an inner-working-angle problem</h3>
+    <p>
+      Because every planet&rsquo;s contrast and separation are stored, HWO&rsquo;s three design
+      levers — inner working angle, post-processed contrast floor, and host-brightness envelope —
+      can be swept over the same 1:1 neighborhood. The result is one-sided: over the plausible
+      trade space, the yield responds <em>only</em> to the working angle. Deepening the contrast
+      floor threefold (3×10<sup>−11</sup> → 1×10<sup>−11</sup>) adds zero candidates; relaxing the
+      host limit from V&nbsp;&lt;&nbsp;11 to 12.5 adds zero (the fainter hosts&rsquo; habitable
+      zones are unresolvable anyway — those two loss modes are the same stars); and the detected
+      planets clear the floor by a median factor of 12. But every milliarcsecond of working angle
+      opens new K-dwarf habitable zones: 60&nbsp;→&nbsp;45&nbsp;mas takes the yield from 19 to 48,
+      and 30&nbsp;mas reaches 99.
+    </p>
+  </section>
+
+  <figure class="viz" id="fig4">
+    <div class="t">Exo-Earth yield vs inner working angle</div>
+    <div class="s">HWO-imaged HZ 0.8–1.4 R⊕ planets in the 1:1 neighborhood; contrast floor and V limit held at requirement values (varying them changes nothing)</div>
+    <div data-chart="fig4"></div>
+    <details class="tbl"><summary>View data as table</summary>
+      <table><thead><tr><th>Inner working angle</th><th>Exo-Earths</th></tr></thead><tbody id="fig4t"></tbody></table>
+    </details>
+  </figure>
+  <figcaption class="cap"><b>Figure 4.</b> The 25-exo-Earth goal is a working-angle requirement in
+    disguise. At the 60&nbsp;mas requirement-era IWA the model yields 19; the goal is crossed
+    between 60 and 45&nbsp;mas. A smaller IWA at fixed wavelength means a larger aperture
+    (60&nbsp;mas ≈ 3λ/D for ~6.5&nbsp;m at V; 30&nbsp;mas needs ~13&nbsp;m or a more aggressive
+    coronagraph mode) — exactly the class of trade Phase-A studies must settle. Caveat: this
+    detection model has no integration-time budget; in a real mission, albedo and floor margins
+    buy shorter exposures and thus more targets per year, so &ldquo;gains nothing&rdquo; applies
+    to detectability, not survey efficiency.</figcaption>
+
+  <section class="col">
+    <p>
+      The same sweep quantifies the albedo question this version set out to test: replacing every
+      drawn albedo with the conventional flat A<sub>g</sub>&nbsp;=&nbsp;0.2 changes the exo-Earth
+      count by zero at every working angle, and the total imaged count by 1% (207 vs 209). Within
+      this model&rsquo;s envelope, reflected-light <em>detectability</em> is geometry-limited for
+      any A<sub>g</sub>&nbsp;≳&nbsp;0.15 — albedo uncertainty instead moves each target&rsquo;s
+      contrast margin, i.e. how characterizable it is once found. The widened albedo range matters
+      most at the bright end (Venus-branch worlds at 3–4× the contrast of an Earth twin) and for
+      the darkest hot giants, which drop out entirely.
+    </p>
+
+    <h3 class="sub">4.5 &ensp;What the real sky has that the null universe lacks</h3>
+    <p>
+      exoverse deliberately omits formation and migration physics: radii are drawn independently
+      within a system, spacings are shaped only by stability, and nothing depletes the hot-Neptune
+      desert. That makes the synthetic detected population a <em class="term">null model</em> —
+      identical selection, no formation memory — so differences from the real detected population
+      isolate astrophysics that selection cannot explain. Four architecture metrics, computed on
+      25,092 synthetic Kepler detections against 4,800 real transit discoveries:
+    </p>
+    <div class="tablewrap">
+      <table class="data">
+        <caption>Architecture null-model comparison — synthetic (no formation physics) vs real detections</caption>
+        <thead><tr><th>Metric</th><th>Null universe</th><th>Real sky</th><th>Reading</th></tr></thead>
+        <tbody>
+          <tr><td>Peas in a pod: median |Δlog R| of adjacent pairs</td>
+            <td class="num">0.175</td><td class="num">0.121</td>
+            <td>Real neighbor planets are ~30% more size-uniform than independent draws under identical selection — formation memory (Weiss+ 2018), quantified against an explicit null.</td></tr>
+          <tr><td>Adjacent pairs just wide of 3:2 resonance</td>
+            <td class="num">6.4%</td><td class="num">11.4%</td>
+            <td rowspan="2">A ~2× pileup near first-order resonances that smooth, stability-only spacing cannot produce: the fingerprint of migration and resonance capture.</td></tr>
+          <tr><td>Adjacent pairs just wide of 2:1 resonance</td>
+            <td class="num">3.7%</td><td class="num">7.6%</td></tr>
+          <tr><td>Observed singles per multi (Kepler dichotomy)</td>
+            <td class="num">5.5</td><td class="num">4.1</td>
+            <td>Unexpected direction: the null produces MORE singles than reality. Size uniformity makes real companions co-detectable, so the classic &ldquo;excess of singles&rdquo; cannot be read as inclination dispersion alone.</td></tr>
+          <tr><td>Hot-Neptune desert occupancy (P &lt; 4 d, 3–8 R⊕)</td>
+            <td class="num">3.7%</td><td class="num">2.1%</td>
+            <td>The real photoevaporation/tidal sink removes roughly half of the would-be desert detections the null predicts.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Two of these are known results reproduced against a cleaner null — that is the tool working
+      as intended. The third is the outside-the-box dividend: because the null has <em>no</em>
+      formation correlations, it shows the &ldquo;Kepler dichotomy&rdquo; and
+      &ldquo;peas-in-a-pod&rdquo; are not independent observations — a population with correlated
+      sizes and no extra inclination component would already shift the singles ratio in the
+      observed direction. Disentangling the two requires exactly the kind of joint forward model
+      this population provides.
     </p>
   </section>
 
@@ -471,10 +587,12 @@
       squarely at reducing yield uncertainty. Published yield analyses identify the occurrence rate
       of Earth-like planets (η<sub>⊕</sub>) and exozodiacal dust as the dominant unknowns, and ask
       which design changes would protect the 25-exo-Earth goal<sup class="r"><a href="#r7">[7]</a></sup>.
-      A synthetic neighborhood population complements this directly: loss-mode budgets like Figure 3
-      quantify the marginal yield of a smaller inner working angle versus a deeper contrast floor —
-      the exact trade Phase-A architecture studies must settle. Extending exoverse with exozodi
-      levels and multi-visit scheduling would make those trades quantitative.
+      A synthetic neighborhood population complements this directly — and §4.4 now delivers the
+      first such trade quantitatively: over this model&rsquo;s envelope the exo-Earth yield responds
+      only to inner working angle, crossing the 25-planet goal between 60 and 45&nbsp;mas. The
+      natural next refinements are an integration-time budget (where albedo and contrast margin
+      buy survey efficiency rather than detectability), exozodi levels, and multi-visit
+      scheduling — each one grafts onto the same stored per-planet contrasts and separations.
     </p>
 
     <h3 class="sub">5.3 &ensp;Demographic inference and η<sub>⊕</sub></h3>
@@ -485,7 +603,13 @@
       survey, hand the &ldquo;detections&rdquo; to an occurrence-rate pipeline, and check whether it
       recovers the input. This closed-loop validation is difficult with real data — the answer is
       unknown — and is a standing gap the community fills with per-survey injection–recovery
-      exercises that don&rsquo;t transfer between instruments.
+      exercises that don&rsquo;t transfer between instruments. The absolute density normalization
+      added in v0.3 strengthens this use: occurrence rates inferred from the modeled surveys can
+      now be compared against the generator&rsquo;s truth in physical units (planets per star,
+      planets per pc³), not just in shape. The architecture null model of §4.5 extends the same
+      idea to system-level statistics — any inference method that claims to measure mutual
+      inclinations or intra-system correlations can be handed the null universe first, where the
+      right answer is &ldquo;none.&rdquo;
     </p>
 
     <h3 class="sub">5.4 &ensp;Training corpora for machine-learning detection</h3>
@@ -527,10 +651,12 @@
       Full modeling assumptions, sources, and volatility notes for each observatory — including
       which numbers are requirement-era and expected to change — are maintained in the project&rsquo;s
       <span class="k-inline">docs/OBSERVATORIES.md</span>. Populations regenerate deterministically:
-      <span class="k-inline">exoverse generate --n 100000 --seed 42</span> reproduces every world in this paper bit-for-bit.
+      <span class="k-inline">exoverse generate --n 1000000 --seed 42</span> reproduces every world in this paper bit-for-bit
+      (and <span class="k-inline">--n 7083 --seed 137 --dmax 30</span> the neighborhood).
     </p>
     <footer class="end">
-      exoverse v0.2 · populations of 2026-07-02 (seeds 42 &amp; 137) · validation snapshot: exoplanet.eu, 8,240 confirmed planets
+      exoverse v0.3 · populations of 2026-07-02 (seeds 42 &amp; 137; 1,000,000 systems ≤ 300 pc +
+      7,083-system 1:1 neighborhood ≤ 30 pc) · validation snapshot: exoplanet.eu, 8,240 confirmed planets
     </footer>
   </section>
 </main>
@@ -629,39 +755,49 @@
 
   /* ------------------------------ figures ------------------------------ */
   var fig1 = [
-    ["Roman GBTDS (2027+)", 2644],
-    ["JWST NIRSpec Prism", 2565],
-    ["Kepler (4 yr, archival)", 2522],
-    ["JWST NIRISS SOSS", 1893],
-    ["Ground 1-m survey", 454],
-    ["TESS (1 sector)", 72],
-    ["HWO imaging (2040s)", 1]
+    ["Roman GBTDS (2027+)", 25976],
+    ["JWST NIRSpec Prism", 25172],
+    ["Kepler (4 yr, archival)", 25092],
+    ["JWST NIRISS SOSS", 18598],
+    ["Ground 1-m survey", 4707],
+    ["TESS (1 sector)", 852],
+    ["HWO imaging (2040s)", 27]
   ];
   barChart(document.querySelector('[data-chart="fig1"]'), fig1,
-    { max: 2644, labelW: 178, aria: "Bar chart of detections by observatory" });
+    { max: 25976, labelW: 178, aria: "Bar chart of detections by observatory" });
   fillTable("fig1t", fig1);
 
   var fig2 = [
-    ["Exist in the population", 17141, "var(--ord-1)"],
-    ["Happen to transit", 202, "var(--ord-2)", "(1.2%)"],
-    ["Detectable by any survey", 171, "var(--ord-3)", "(1.0%)"]
+    ["Exist in the population", 171701, "var(--ord-1)"],
+    ["Happen to transit", 1705, "var(--ord-2)", "(1.0%)"],
+    ["Detectable by any survey", 1500, "var(--ord-3)", "(0.9%)"]
   ];
   barChart(document.querySelector('[data-chart="fig2"]'), fig2,
-    { max: 17141, total: 17141, labelW: 178, aria: "Funnel of habitable-zone rocky planets from existing to detectable" });
+    { max: 171701, total: 171701, labelW: 178, aria: "Funnel of habitable-zone rocky planets from existing to detectable" });
   fillTable("fig2t", fig2);
 
   var fig3a = [
-    ["Host too faint (V ≥ 11)", 2002, "var(--ord-1)"],
-    ["Inside 60 mas working angle", 499, "var(--ord-2)"],
-    ["Detected by HWO", 44, "var(--ord-3)"]
+    ["Host too faint (V ≥ 11)", 677, "var(--ord-1)"],
+    ["Inside 60 mas working angle", 166, "var(--ord-2)"],
+    ["Detected by HWO", 19, "var(--ord-3)"]
   ];
   var fig3b = [
-    ["F stars", 10], ["G stars", 15], ["K stars", 19], ["M stars", 0]
+    ["F stars", 6], ["G stars", 6], ["K stars", 7], ["M stars", 0]
   ];
   var duo = document.querySelectorAll("#fig3 [data-chart]");
-  barChart(duo[0], fig3a, { max: 2002, total: 2545, labelW: 165, width: 360, aria: "HWO outcomes for habitable-zone Earth-size planets within 30 parsecs" });
-  barChart(duo[1], fig3b, { max: 19, total: 44, labelW: 62, width: 360, aria: "Detected exo-Earth hosts by spectral type" });
-  fillTable("fig3t", fig3a.concat([["— hosts of the 44 —", ""]].map(function(d){return d;})).concat(fig3b));
+  barChart(duo[0], fig3a, { max: 677, total: 862, labelW: 165, width: 360, aria: "HWO outcomes for habitable-zone Earth-size planets in the 1:1 neighborhood" });
+  barChart(duo[1], fig3b, { max: 7, total: 19, labelW: 62, width: 360, aria: "Detected exo-Earth hosts by spectral type" });
+  fillTable("fig3t", fig3a.concat([["— hosts of the 19 —", ""]].map(function(d){return d;})).concat(fig3b));
+
+  var fig4 = [
+    ["30 mas", 99, "var(--ord-3)"],
+    ["45 mas", 48, "var(--ord-2)"],
+    ["60 mas (requirement)", 19, "var(--ord-2)"],
+    ["75 mas", 13, "var(--ord-1)"]
+  ];
+  barChart(document.querySelector('[data-chart="fig4"]'), fig4,
+    { max: 99, labelW: 178, aria: "Exo-Earth yield versus inner working angle" });
+  fillTable("fig4t", fig4);
 })();
 </script>
 

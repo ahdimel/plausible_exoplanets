@@ -7,15 +7,24 @@ architecture; this file is "how do I do X" with the traps called out.
 
 ```bash
 rm -f worlds.db   # schema version mismatch raises; DBs are disposable
-.venv/bin/exoverse --db worlds.db generate --n 100000 --seed 42
-.venv/bin/exoverse --db neighborhood.db generate --n 20000 --seed 137 --dmax 30
+.venv/bin/exoverse --db worlds.db generate --n 1000000 --seed 42
+.venv/bin/exoverse --db neighborhood.db generate --n 7083 --seed 137 --dmax 30
 ```
-- Generation runs ~2000 systems/s (100k ≈ 1 min). SeedSequence children are
-  a stream: growing N keeps all earlier (seed, name) worlds identical.
+- Generation runs ~2000 systems/s (1M ≈ 9 min, ~2.1 GB). SeedSequence
+  children are a stream: growing N keeps all earlier (seed, name) worlds
+  identical — 1M is a bit-exact prefix of a future full-reality run
+  (`--n 5199422` would be 1:1 with the ~5.2M real systems within 300 pc,
+  ~45 min / ~11 GB; stats reports the sampled fraction either way).
+- The neighborhood N is not arbitrary: 7,083 =
+  `round(stars.expected_systems_within(30.0))`, making that population a
+  1:1 solar-neighborhood analog whose HWO counts are absolute yield
+  estimates. Recompute it if the density model changes.
 - `--dmax` (pc) makes a solar-neighborhood population for direct-imaging
-  studies. It rescales ONE rng.random() call, so it never shifts the random
+  studies. It consumes ONE rng.random() call, so it never shifts the random
   stream; it is stored in DB meta and must be passed to re-generation
-  (`db.dmax_pc` — cli lightcurve and web app already do).
+  (`db.dmax_pc` — cli lightcurve and web app already do). Note the draw is
+  a disk-structure CDF inversion (stars.sample_distance), NOT a linear
+  rescale: distances no longer scale exactly by dmax ratios.
 - Changing ANY rng draw inside `generate_system` (order, count, distribution)
   changes every world downstream of that draw. That's allowed — worlds are
   versionless — but re-run `generate`, `validate`, and the tests afterwards,
@@ -78,8 +87,19 @@ Traps encountered in the wild (all handled in `archive.py`, keep the guards):
 - Meaningful regressions to watch: log-period KS p collapsing (period
   occurrence broken) or synthetic radius median drifting off ~0.36 dex
   (radius valley / M-R relations broken).
+- The "System architecture" section compares metrics the generator
+  deliberately does NOT model (peas-in-a-pod uniformity, resonance pileups,
+  Kepler dichotomy, desert depletion). These are EXPECTED to disagree —
+  the synthetic side is the no-formation-physics null; the residual is the
+  science. A synthetic-vs-real match here would mean the metric has no
+  discriminating power, not that the generator is right.
 
 ## Skill: run and extend the web UI
+
+> **Do visual verification in a sub-agent.** Any headless-Chrome screenshot,
+> image crop, or layout/chart check should be delegated (`Explore` to look and
+> report, `general-purpose` to also fix) so the PNGs never enter the main
+> context. See "Workflow (token discipline)" in CLAUDE.md.
 
 ```bash
 .venv/bin/exoverse --db worlds.db serve --port 8321
@@ -97,17 +117,25 @@ Traps encountered in the wild (all handled in `archive.py`, keep the guards):
 
 ## Skill: update the project paper (docs/paper.html)
 
+> **Run this in a sub-agent.** Hand the whole job to a `general-purpose`
+> sub-agent (re-derive numbers, edit prose + figure arrays, verify light AND
+> dark in headless Chrome, report only the diff). The screenshots and
+> full-file reads stay in its throwaway context — never pull full-page PNGs
+> into the main thread. See "Workflow (token discipline)" in CLAUDE.md.
+
 - Fully self-contained: inline CSS/JS, no external requests (fonts are
   system stacks; figures are inline SVG built by the `barChart()` helper at
   the bottom of the file). Keep it that way — it must render offline.
-- All figures and prose numbers are HARDCODED snapshots (2026-07-02
-  populations, seeds 42/137). After any regeneration that changes physics,
-  re-derive them: `stats` for both DBs, plus the analysis queries (HWO
-  loss modes for HZ 0.8-1.4 Re planets, EEC hosts by spectral type,
-  Kepler-detectable radius median) — the queries live in this session's
-  pattern: JOIN planets/observations, `observatory LIKE 'HWO%'`.
-- Chart data lives in the arrays `fig1/fig2/fig3a/fig3b` in the script tag;
-  each figure has a matching table fallback (`fillTable`).
+- All figures and prose numbers are HARDCODED snapshots (2026-07-02 v0.3
+  populations, seeds 42/137, N=1,000,000 + 7,083). After any regeneration
+  that changes physics, re-derive them: `stats` for both DBs, the validate
+  report (KS + structure sections feed §3 and §4.5), plus the analysis
+  queries (HZ-rocky funnel, rare-regime flag counts, HWO loss modes for HZ
+  0.8-1.4 Re planets, EEC hosts by spectral type, the IWA×floor sweep of
+  §4.4 over stored contrast/separation_mas, Kepler-detectable radius
+  median) — pattern: JOIN planets/observations, `observatory LIKE 'HWO%'`.
+- Chart data lives in the arrays `fig1/fig2/fig3a/fig3b/fig4` in the script
+  tag; each figure has a matching table fallback (`fillTable`).
 - Light AND dark mode exist (CSS vars + prefers-color-scheme). Verify both
   with headless Chrome before committing; to force light, strip the dark
   @media block into a temp copy (Chrome headless follows OS dark mode).

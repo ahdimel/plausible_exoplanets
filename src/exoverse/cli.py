@@ -81,11 +81,12 @@ def cmd_inspect(args) -> None:
                       f"H={atm['scale_height_km']:.0f} km  "
                       f"feature~{atm['feature_ppm']:.0f} ppm "
                       f"(clouds x{atm['cloud_factor']:.2f})  "
+                      f"A_g={atm['geometric_albedo']:.2f}  "
                       f"TSM={atm['tsm']:.0f}{' *priority*' if atm['tsm_priority'] else ''}  "
                       f"ESM={atm['esm']:.0f}")
             else:
                 print(f"    Atmosphere: {atm['atm_class']} (likely stripped; "
-                      "cosmic shoreline)")
+                      f"cosmic shoreline)  A_g={atm['geometric_albedo']:.2f}")
 
         if p["transits"]:
             print(f"    TRANSITS: depth={p['depth_ppm']:.0f} ppm "

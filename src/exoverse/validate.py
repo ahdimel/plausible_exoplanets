@@ -200,6 +200,157 @@ def compare_populations(db_path: str, planets: List[ArchivePlanet]
     return out
 
 
+# ------------------------------------------- system-architecture comparison
+@dataclass
+class StructureComparison:
+    metric: str
+    synthetic: dict
+    real: dict
+    ks_stat: float
+    ks_pvalue: float
+    note: str = ""
+
+
+def _adjacent_pairs(groups: dict) -> tuple[List[float], List[float]]:
+    """Given {system: [(period, radius), ...]}, return adjacent-pair period
+    ratios (outer/inner) and |log10 radius ratios|, sorted by period."""
+    pratios: List[float] = []
+    rratios: List[float] = []
+    for members in groups.values():
+        members = sorted(m for m in members if m[0] and m[0] > 0)
+        for inner, outer in zip(members, members[1:]):
+            pratios.append(outer[0] / inner[0])
+            if inner[1] and outer[1] and inner[1] > 0 and outer[1] > 0:
+                rratios.append(abs(math.log10(outer[1] / inner[1])))
+    return pratios, rratios
+
+
+def _multiplicity_hist(groups: dict) -> dict:
+    hist = {"1": 0, "2": 0, "3+": 0}
+    for members in groups.values():
+        n = len(members)
+        hist["1" if n == 1 else "2" if n == 2 else "3+"] += 1
+    return hist
+
+
+def _desert_fraction(planets_pr: List[tuple]) -> tuple[int, int]:
+    """(count in hot-Neptune desert, total) for [(period, radius), ...].
+    Desert box: P < 4 d and 3 <= R < 8 Re (Mazeh+ 2016 core)."""
+    with_data = [(p, r) for p, r in planets_pr if p and r]
+    hits = sum(1 for p, r in with_data if p < 4.0 and 3.0 <= r < 8.0)
+    return hits, len(with_data)
+
+
+def compare_structure(db_path: str, planets: List[ArchivePlanet]
+                      ) -> List[StructureComparison]:
+    """Selection-matched comparison of system ARCHITECTURE, not just 1-D
+    occurrence: these metrics probe physics the generator deliberately does
+    not put in (formation memory, migration), so real-vs-synthetic residuals
+    isolate signatures that survey selection alone cannot explain.
+
+    - peas-in-a-pod: real Kepler multis have correlated planet sizes
+      (Weiss+ 2018); our planets are drawn independently, so the synthetic
+      dispersion of adjacent radius ratios is the *no-formation-memory null*.
+    - period ratios: real multis pile up just wide of 2:1 and 3:2 resonances
+      (Fabrycky+ 2014, migration + tidal damping); our spacing is smooth
+      (only Hill-stability carving), so any real excess is dynamics.
+    - multiplicity (the 'Kepler dichotomy'): tests the single Rayleigh(1.5
+      deg) mutual-inclination population against reality's apparent excess
+      of single-transiting systems.
+    - hot-Neptune desert: we only flag the desert, we don't deplete it;
+      real photoevaporation/tidal stripping does. The occupancy gap measures
+      that missing physics in the DETECTED population."""
+    db = WorldDB(db_path)
+    rows = db.conn.execute(
+        """SELECT p.system_id, p.period_d, p.radius_re FROM planets p
+           JOIN observations o ON o.planet_id = p.id
+           WHERE o.observatory LIKE 'Kepler%' AND o.detectable = 1
+           ORDER BY p.system_id, p.period_d""").fetchall()
+    db.close()
+    syn_groups: dict = {}
+    for sid, per, rad in rows:
+        syn_groups.setdefault(sid, []).append((per, rad))
+
+    real_groups: dict = {}
+    for p in planets:
+        if p.tran_flag == 1.0 and "transit" in p.discoverymethod.lower():
+            real_groups.setdefault(p.hostname or p.pl_name, []).append(
+                (p.pl_orbper, p.pl_rade))
+
+    syn_pr, syn_rr = _adjacent_pairs(syn_groups)
+    real_pr, real_rr = _adjacent_pairs(real_groups)
+    syn_pr_in = [x for x in syn_pr if 1.0 < x < 5.0]
+    real_pr_in = [x for x in real_pr if 1.0 < x < 5.0]
+
+    out: List[StructureComparison] = []
+
+    d, pval = ks_2samp(syn_rr, real_rr)
+    out.append(StructureComparison(
+        "peas_in_a_pod_radius_uniformity",
+        {"n_pairs": len(syn_rr), **quantiles(syn_rr)},
+        {"n_pairs": len(real_rr), **quantiles(real_rr)},
+        round(d, 4), round(pval, 6),
+        "|log10(R_out/R_in)| of adjacent detected pairs. Synthetic = "
+        "independent-draw null; if real medians are smaller, real systems "
+        "have intra-system size uniformity (formation memory, Weiss+ 2018) "
+        "that selection effects alone cannot produce."))
+
+    def near(vals, lo, hi):
+        return sum(1 for x in vals if lo <= x < hi)
+
+    def res_stats(vals):
+        n = len(vals)
+        return {
+            "n_pairs": n,
+            "frac_near_3to2": round(near(vals, 1.5, 1.6) / n, 4) if n else 0.0,
+            "frac_near_2to1": round(near(vals, 2.0, 2.1) / n, 4) if n else 0.0,
+            **quantiles(vals),
+        }
+
+    d, pval = ks_2samp(syn_pr_in, real_pr_in)
+    out.append(StructureComparison(
+        "adjacent_period_ratios",
+        res_stats(syn_pr_in), res_stats(real_pr_in),
+        round(d, 4), round(pval, 6),
+        "Period ratios of adjacent detected pairs (1-5). Synthetic spacing "
+        "is smooth (Hill stability only); a real excess just wide of 3:2 "
+        "and 2:1 is the fingerprint of migration + resonance capture."))
+
+    syn_mult = _multiplicity_hist(syn_groups)
+    real_mult = _multiplicity_hist(real_groups)
+
+    def dichotomy(h):
+        multi = h["2"] + h["3+"]
+        return round(h["1"] / multi, 2) if multi else float("inf")
+
+    out.append(StructureComparison(
+        "transit_multiplicity",
+        {**syn_mult, "singles_per_multi": dichotomy(syn_mult)},
+        {**real_mult, "singles_per_multi": dichotomy(real_mult)},
+        float("nan"), float("nan"),
+        "Detected-planets-per-system histogram (the 'Kepler dichotomy' "
+        "test). Our single Rayleigh(1.5 deg) mutual-inclination population "
+        "predicts fewer observed singles than reality if real systems have "
+        "a second, dynamically hot component."))
+
+    syn_hits, syn_tot = _desert_fraction(
+        [(p, r) for members in syn_groups.values() for p, r in members])
+    real_hits, real_tot = _desert_fraction(
+        [(p, r) for members in real_groups.values() for p, r in members])
+    out.append(StructureComparison(
+        "hot_neptune_desert_occupancy",
+        {"in_desert": syn_hits, "total": syn_tot,
+         "fraction": round(syn_hits / syn_tot, 4) if syn_tot else 0.0},
+        {"in_desert": real_hits, "total": real_tot,
+         "fraction": round(real_hits / real_tot, 4) if real_tot else 0.0},
+        float("nan"), float("nan"),
+        "Fraction of detected planets with P < 4 d and 3 <= R < 8 Re. The "
+        "generator flags but does not deplete the desert; the synthetic "
+        "excess over reality measures the strength of the real "
+        "photoevaporation/tidal-stripping sink (Mazeh+ 2016)."))
+    return out
+
+
 # --------------------------------------------------------------- reporting
 def run_validation(db_path: str, data_dir: str | Path = "data") -> dict:
     planets, meta = load_snapshot(data_dir)
@@ -207,6 +358,7 @@ def run_validation(db_path: str, data_dir: str | Path = "data") -> dict:
         "archive": meta,
         "rule_audits": [asdict(a) for a in audit_rules(planets)],
         "distributions": [asdict(c) for c in compare_populations(db_path, planets)],
+        "structure": [asdict(c) for c in compare_structure(db_path, planets)],
     }
     out_path = Path(data_dir) / "validation_report.json"
     out_path.write_text(json.dumps(report, indent=2))
@@ -234,6 +386,17 @@ def format_report(report: dict) -> str:
                      f"(n_syn={c['n_synthetic']}, n_real={c['n_real']})")
         lines.append(f"      synthetic median={c['synthetic_quantiles'].get('q50')}"
                      f"  real median={c['real_quantiles'].get('q50')}")
+        if c["note"]:
+            lines.append(f"      note: {c['note']}")
+    lines.append("\n-- System architecture (physics the generator leaves out"
+                 " on purpose) --")
+    for c in report.get("structure", []):
+        ks = ""
+        if c["ks_stat"] == c["ks_stat"]:   # not NaN
+            ks = f"  KS D={c['ks_stat']:.3f} p={c['ks_pvalue']:.4f}"
+        lines.append(f"  {c['metric']}{ks}")
+        lines.append(f"      synthetic: {c['synthetic']}")
+        lines.append(f"      real     : {c['real']}")
         if c["note"]:
             lines.append(f"      note: {c['note']}")
     return "\n".join(lines)
