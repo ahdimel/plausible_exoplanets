@@ -95,6 +95,23 @@ Traps encountered in the wild (all handled in `archive.py`, keep the guards):
   --disable-gpu --window-size=1200,1400 --screenshot=out.png <url>`
 - The app is read-only; anything that writes belongs in the CLI, not the web.
 
+## Skill: update the project paper (docs/paper.html)
+
+- Fully self-contained: inline CSS/JS, no external requests (fonts are
+  system stacks; figures are inline SVG built by the `barChart()` helper at
+  the bottom of the file). Keep it that way — it must render offline.
+- All figures and prose numbers are HARDCODED snapshots (2026-07-02
+  populations, seeds 42/137). After any regeneration that changes physics,
+  re-derive them: `stats` for both DBs, plus the analysis queries (HWO
+  loss modes for HZ 0.8-1.4 Re planets, EEC hosts by spectral type,
+  Kepler-detectable radius median) — the queries live in this session's
+  pattern: JOIN planets/observations, `observatory LIKE 'HWO%'`.
+- Chart data lives in the arrays `fig1/fig2/fig3a/fig3b` in the script tag;
+  each figure has a matching table fallback (`fillTable`).
+- Light AND dark mode exist (CSS vars + prefers-color-scheme). Verify both
+  with headless Chrome before committing; to force light, strip the dark
+  @media block into a temp copy (Chrome headless follows OS dark mode).
+
 ## Skill: query the database directly
 
 ```python

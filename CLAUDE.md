@@ -93,9 +93,26 @@ mid-sequence, it breaks reproducibility of every stored world) →
 - Validation at 100k: audit residuals unchanged (3.8% deuterium = brown
   dwarfs, 2.7% iron); Kepler-detectable radius median refined to 0.316 dex
   (0.338 on the 10k subset — sample size, not a regression).
+- Project paper: `docs/paper.html` — self-contained HTML (motivation, goals,
+  validation, findings, researched future directions). Its figures/numbers
+  are HARDCODED snapshots of the 2026-07-02 populations; if you regenerate
+  either DB with different physics, the paper's numbers must be re-derived
+  and updated by hand (see SKILLS.md).
+- Known model deficiency (found at 10k scale, still present): the INTRINSIC
+  radius distribution has no dip at 1.7-2.0 Re — the Fulton valley is
+  smeared flat by the two wide lognormal peaks in
+  `planets.py::sample_small_radius`. Top candidate physics fix. (The
+  DETECTED population still matches real surveys well enough for KS.)
+- Candidate research directions (paper section 5, with literature refs):
+  (1) survey trade studies / yield forecasting (PLATO arXiv:2407.15917,
+  Roman arXiv:2305.16204); (2) HWO IWA-vs-contrast-floor design trades +
+  exozodi + multi-visit scheduling (TSS25 target list arXiv:2509.20544);
+  (3) closed-loop occurrence-rate inference validation (inject synthetic
+  universe -> modeled survey -> eta-Earth pipeline -> check recovery);
+  (4) exporting labeled light-curve corpora for ML vetting
+  (arXiv:2507.19520); (5) public web deploy of the read-only UI.
 - Open scope: N-body verification of packed multis, binary hosts, TTVs,
-  radiative-transfer spectra instead of scale-height heuristics, HWO
-  spectroscopy/exozodi modeling, deploying the web UI publicly, refreshing
+  radiative-transfer spectra instead of scale-height heuristics, refreshing
   Roman/HWO specs as the missions evolve (docs/OBSERVATORIES.md has "last
   researched" dates).
 - NASA TAP may recover: `exoverse archive --refresh --prefer nasa` will then

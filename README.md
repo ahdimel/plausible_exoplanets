@@ -11,6 +11,10 @@ resulting light signatures, and asks *which observatories could actually see
 each world*. The output is a queryable SQLite database of worlds, each with
 rich validated metadata and explicit plausibility flags.
 
+**Project paper**: [docs/paper.html](docs/paper.html) — motivation, methods,
+validation, findings from the 120,000-system populations, and future
+directions (fully self-contained; open it in any browser).
+
 ## Quick start
 
 ```bash
