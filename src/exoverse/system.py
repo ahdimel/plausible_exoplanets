@@ -75,13 +75,20 @@ def check_pair_stability(star: Star, p_in: Planet, p_out: Planet) -> Flag | None
     return None
 
 
-def generate_system(seed: int, name: str, max_planet_tries: int = 40) -> StellarSystem:
-    """Generate one validated stellar system. INVALID draws are resampled."""
+def generate_system(seed: int, name: str, max_planet_tries: int = 40,
+                    dmax_pc: float = 300.0) -> StellarSystem:
+    """Generate one validated stellar system. INVALID draws are resampled.
+
+    dmax_pc caps the host distance draw (see stars.generate_star): it only
+    rescales the distance, never the random stream, so (seed, name, dmax_pc)
+    is bit-for-bit reproducible and dmax_pc=300 matches historical worlds.
+    Re-generation paths (CLI lightcurve, web UI) must pass the dmax_pc the
+    population was generated with (stored in DB meta)."""
     rng = np.random.default_rng(seed)
 
-    star = generate_star(rng)
+    star = generate_star(rng, dmax_pc)
     while star.is_invalid:
-        star = generate_star(rng)
+        star = generate_star(rng, dmax_pc)
 
     n_target = min(int(rng.poisson(MEAN_PLANETS)), MAX_PLANETS)
     is_single = n_target == 1

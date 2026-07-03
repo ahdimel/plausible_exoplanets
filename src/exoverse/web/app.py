@@ -100,13 +100,14 @@ def create_app(db_path: str, data_dir: str = "data") -> Flask:
             })
         flags = d.get_flags(s["id"])
         letters = {p["row"]["id"]: p["row"]["letter"] for p in planets}
+        dmax_pc = d.dmax_pc
         d.close()
 
         # Light curves re-simulated deterministically for transiting planets
         curves = []
         from ..system import generate_system
         from ..transits import compute_geometry, model_light_curve
-        gen = generate_system(s["seed"], s["name"])
+        gen = generate_system(s["seed"], s["name"], dmax_pc=dmax_pc)
         for i, gp in enumerate(gen.planets):
             geom = compute_geometry(gen.star, gp)
             if geom.transits and geom.t14_hours > 0:

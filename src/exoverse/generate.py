@@ -15,16 +15,21 @@ from .transits import compute_geometry
 
 
 def generate_population(db_path: str, n_systems: int, seed: int = 42,
-                        progress: bool = True) -> dict:
-    """Generate n_systems validated systems and store them in db_path."""
+                        progress: bool = True,
+                        dmax_pc: float = 300.0) -> dict:
+    """Generate n_systems validated systems and store them in db_path.
+
+    dmax_pc caps host distances (solar-neighborhood mode when small); it is
+    recorded in DB meta so re-generation from (seed, name) stays exact."""
     db = WorldDB(db_path)
+    db.set_meta("dmax_pc", str(dmax_pc))
     master = np.random.SeedSequence(seed)
     child_seeds = master.generate_state(n_systems)
 
     t0 = time.time()
     for i, child in enumerate(child_seeds):
         name = f"PXS-{seed}-{i:05d}"
-        system = generate_system(int(child), name)
+        system = generate_system(int(child), name, dmax_pc=dmax_pc)
         star = system.star
         geoms = [compute_geometry(star, p) for p in system.planets]
         obs = [observe(star, p, g, system.noise)

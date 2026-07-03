@@ -27,12 +27,20 @@ inspectable with full metadata and plausibility flags.
 ## Commands
 
 ```bash
-.venv/bin/exoverse --db worlds.db generate --n 10000 --seed 42
+.venv/bin/exoverse --db worlds.db generate --n 100000 --seed 42
+.venv/bin/exoverse --db neighborhood.db generate --n 20000 --seed 137 --dmax 30   # solar neighborhood (HWO)
 .venv/bin/exoverse --db worlds.db stats | list | inspect <name> | lightcurve <name> <letter>
 .venv/bin/exoverse archive --refresh          # snapshot real-planet catalog -> data/
 .venv/bin/exoverse --db worlds.db validate    # audit vs real planets -> data/validation_report.json
 .venv/bin/exoverse --db worlds.db serve       # web UI on http://127.0.0.1:8321
 ```
+
+Two working datasets: `worlds.db` (100k systems, d<=300 pc — transit-survey
+statistics) and `neighborhood.db` (20k systems, d<=30 pc — direct-imaging /
+HWO statistics; a 300 pc sample starves HWO of targets, ~0.001% detectable).
+`--dmax` only rescales the distance draw (same rng stream), and is stored in
+DB meta so (seed, name) re-generation stays exact — pass `db.dmax_pc` to any
+new re-generation call site.
 
 ## Architecture (src/exoverse/)
 
@@ -74,10 +82,21 @@ mid-sequence, it breaks reproducibility of every stored world) →
 
 ## Where the last session left off / natural next steps
 
-- 10,000-system population is the working dataset (seed 42).
+- Working datasets: worlds.db (100k, seed 42) + neighborhood.db (20k,
+  seed 137, dmax 30 pc). HWO model upgraded: per-atmosphere-class geometric
+  albedo, photon-limited contrast floor 3e-11*10^(0.2*(V-7)), V<11
+  evaluation envelope; stats now report hwo_exo_earth_candidates (HZ,
+  0.8-1.4 Re). Neighborhood run: 522 HWO detections, 44 EECs — scaled to
+  the real ~10k stars within 30 pc that's ~22 exo-Earths, matching the
+  Astro2020 ">=25" goal. Dominant EEC loss: M-dwarf hosts (79% too faint,
+  V>=11) then IWA (20%); EEC hosts come out K>G>F, no M.
+- Validation at 100k: audit residuals unchanged (3.8% deuterium = brown
+  dwarfs, 2.7% iron); Kepler-detectable radius median refined to 0.316 dex
+  (0.338 on the 10k subset — sample size, not a regression).
 - Open scope: N-body verification of packed multis, binary hosts, TTVs,
-  radiative-transfer spectra instead of scale-height heuristics, deploying
-  the web UI publicly, refreshing Roman/HWO specs as the missions evolve
-  (docs/OBSERVATORIES.md has "last researched" dates).
+  radiative-transfer spectra instead of scale-height heuristics, HWO
+  spectroscopy/exozodi modeling, deploying the web UI publicly, refreshing
+  Roman/HWO specs as the missions evolve (docs/OBSERVATORIES.md has "last
+  researched" dates).
 - NASA TAP may recover: `exoverse archive --refresh --prefer nasa` will then
   produce a cleaner audit than exoplanet.eu (true mass provenance flags).

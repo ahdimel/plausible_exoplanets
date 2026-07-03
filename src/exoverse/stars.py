@@ -153,8 +153,14 @@ def ms_radius(mass: float) -> float:
     return mass ** 0.6
 
 
-def generate_star(rng: np.random.Generator) -> Star:
-    """Generate one plausible main-sequence star with validated metadata."""
+def generate_star(rng: np.random.Generator, dmax_pc: float = 300.0) -> Star:
+    """Generate one plausible main-sequence star with validated metadata.
+
+    dmax_pc caps the distance draw (p(d) ~ d^2 out to dmax_pc). It scales a
+    single rng.random() call, so the random stream — and therefore every
+    other property of the star and its system — is identical for any value;
+    only the distance (and apparent magnitudes) change. Populations with
+    dmax_pc < 300 model the solar neighborhood for direct-imaging studies."""
     mass = sample_kroupa_mass(rng)
     feh = float(np.clip(rng.normal(-0.1, 0.2), -1.0, 0.5))
 
@@ -166,7 +172,7 @@ def generate_star(rng: np.random.Generator) -> Star:
     ms_lifetime = 10.0 * mass / lum  # Gyr
     age = float(rng.uniform(0.5, min(12.0, ms_lifetime)))
 
-    dist = 300.0 * float(rng.random() ** (1.0 / 3.0))  # p(d) ~ d^2
+    dist = dmax_pc * float(rng.random() ** (1.0 / 3.0))  # p(d) ~ d^2
     dist = max(dist, 5.0)
 
     mbol = MBOL_SUN - 2.5 * math.log10(lum)

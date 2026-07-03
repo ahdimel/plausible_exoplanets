@@ -54,14 +54,29 @@ requirement-era and WILL change. Target launch: **2040s**.
   [arXiv:2510.02547](https://arxiv.org/abs/2510.02547)),
   [Wikipedia/HWO](https://en.wikipedia.org/wiki/Habitable_Worlds_Observatory).
 - **Our model** (all volatile): detection when
-  - host V < 8 and d < 30 pc (nearby-bright target-list proxy),
+  - host V < 11 and d < 30 pc (evaluation envelope; the faint end is then
+    governed by the photon-limited floor below, not a hard cut — V ≥ 11
+    hosts are excluded because exposure times become impractical),
   - quadrature separation a/d within [60, 500] mas (IWA ≈ 3λ/D at V for
     ~6.5 m),
-  - reflected-light contrast C = A_g·Φ(90°)·(Rp/a)² > 3e-11, with A_g = 0.3
-    and Lambertian Φ(90°) = 1/π. (Earth analog at 10 pc: C ≈ 1.7e-10 at
-    100 mas — comfortably detected, as intended.)
+  - reflected-light contrast C = A_g·Φ(90°)·(Rp/a)² above the
+    brightness-dependent post-processed floor
+    **3e-11 · 10^(0.2·max(V−7, 0))** — systematics-limited 3e-11 on bright
+    hosts, photon-limited degradation fainter than V ≈ 7.
+  - A_g by atmosphere class, anchored on solar-system bodies: h_he 0.50
+    (Jupiter 0.52, Saturn 0.47), h_he_rich 0.40 (Neptune 0.44), steam 0.35,
+    secondary 0.30 (cloudy Earth ~0.37; yield studies often assume 0.2),
+    airless 0.12 (Moon 0.11, Mars 0.15); Lambertian Φ(90°) = 1/π.
+    (Earth analog at 10 pc: C ≈ 1.7e-10 at 100 mas — comfortably detected,
+    as intended.)
+- **Headline metric**: `stats` reports `hwo_exo_earth_candidates` — HZ
+  planets of 0.8–1.4 R⊕ that HWO can image — mirroring the Astro2020
+  "≥25 exo-Earths" goal (our count is per generated population, not a
+  mission-yield forecast: the generated volume extends to 300 pc while HWO
+  only reaches ~30 pc, so only ~0.1% of generated systems are even in range).
 - **Not modeled**: spectroscopy/biosignature yield, exozodi confusion,
-  observation scheduling, UV transit spectroscopy mode.
+  orbital-phase scheduling (quadrature assumed), UV transit spectroscopy
+  mode, multi-visit orbit determination.
 
 ## Sources
 

@@ -110,6 +110,23 @@ class WorldDB:
     def close(self) -> None:
         self.conn.close()
 
+    # ------------------------------------------------------------------ meta
+    def set_meta(self, key: str, value: str) -> None:
+        self.conn.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)",
+                          (key, str(value)))
+        self.conn.commit()
+
+    def get_meta(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        row = self.conn.execute("SELECT value FROM meta WHERE key=?",
+                                (key,)).fetchone()
+        return row[0] if row is not None else default
+
+    @property
+    def dmax_pc(self) -> float:
+        """Distance cap the population was generated with (pre-existing DBs
+        without the key were all generated at 300 pc)."""
+        return float(self.get_meta("dmax_pc", "300.0"))
+
     # ------------------------------------------------------------------ save
     def save_system(self, system: StellarSystem,
                     geometries: List[TransitGeometry],
@@ -278,4 +295,16 @@ class WorldDB:
             "practical_atm_targets": row(
                 "SELECT COUNT(DISTINCT planet_id) FROM atm_observations"
                 " WHERE practical=1"),
+            "hwo_detections_by_class": dict(c.execute(
+                "SELECT p.comp_class, COUNT(*) FROM planets p"
+                " JOIN observations o ON o.planet_id = p.id"
+                " WHERE o.observatory LIKE 'HWO%' AND o.detectable=1"
+                " GROUP BY p.comp_class").fetchall()),
+            # Exo-Earth candidates: HZ planets of 0.8-1.4 R_earth directly
+            # imageable by HWO (the mission's headline ">=25 exo-Earths" metric)
+            "hwo_exo_earth_candidates": row(
+                "SELECT COUNT(*) FROM planets p"
+                " JOIN observations o ON o.planet_id = p.id"
+                " WHERE o.observatory LIKE 'HWO%' AND o.detectable=1"
+                " AND p.in_hz=1 AND p.radius_re BETWEEN 0.8 AND 1.4"),
         }

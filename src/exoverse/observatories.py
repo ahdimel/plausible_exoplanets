@@ -31,11 +31,15 @@ Future observatories (specs WILL evolve; see docs/OBSERVATORIES.md):
                   Roman field" (INFO note attached to every result).
 - HWO           : Habitable Worlds Observatory (~6-8 m, launch 2040s, specs
                   pre-Phase-A): direct imaging, not transits. Requirement:
-                  raw contrast ~1e-10, post-processed sensitivity ~3e-11,
-                  IWA ~3 lambda/D ~ 60 mas @ V. We compute the planet's
-                  reflected-light contrast at quadrature and its angular
-                  separation, and score detectability for hosts V<8 within
-                  ~30 pc. Goal: ~25 exo-Earths (NASA ASTRO2020 response).
+                  raw contrast ~1e-10, best post-processed sensitivity
+                  ~3e-11 on bright stars, IWA ~3 lambda/D ~ 60 mas @ V.
+                  We compute the planet's reflected-light contrast at
+                  quadrature (geometric albedo by atmosphere class) and its
+                  angular separation, and score it against a photon-limited
+                  contrast floor that degrades for hosts fainter than V~7.
+                  Evaluated for hosts V<11 within ~30 pc; the IWA and the
+                  degraded floor - not a hard magnitude cut - decide the
+                  faint M-dwarf cases. Goal: ~25 exo-Earths (Astro2020).
 """
 
 from __future__ import annotations
@@ -172,41 +176,70 @@ def observe(star: Star, planet: Planet, geom: TransitGeometry,
 
 
 # ------------------------------------------------------------------- imaging
-HWO_CONTRAST_FLOOR = 3e-11    # post-processed detection floor (requirement-era)
+HWO_CONTRAST_FLOOR = 3e-11    # best post-processed floor, bright hosts (req-era)
 HWO_IWA_MAS = 60.0            # ~3 lambda/D at V band for ~6.5 m
 HWO_OWA_MAS = 500.0
-HWO_VMAG_LIMIT = 8.0
+HWO_VMAG_REF = 7.0            # floor is photon-limited fainter than this
+HWO_VMAG_LIMIT = 11.0         # fainter hosts: exposure times impractical
 HWO_DIST_LIMIT_PC = 30.0
+
+# V-band geometric albedo by atmosphere class, anchored on solar-system
+# bodies: Jupiter 0.52 / Saturn 0.47; Neptune 0.44 / Uranus 0.49; Earth
+# ~0.37 with clouds (exo-Earth yield studies often assume 0.2, so 0.30 is
+# a middle ground); Moon 0.11 / Mercury 0.14 / Mars 0.15.
+HWO_GEOMETRIC_ALBEDO = {
+    "h_he": 0.50,
+    "h_he_rich": 0.40,
+    "steam": 0.35,
+    "secondary": 0.30,
+    "airless": 0.12,
+}
+HWO_DEFAULT_ALBEDO = 0.3
+
+
+def hwo_contrast_floor(mag_v: float) -> float:
+    """Post-processed 1-sigma-class contrast floor vs host brightness:
+    systematics-limited at HWO_CONTRAST_FLOOR for V <= 7, photon-limited
+    (10^(0.2*(V-7))) for fainter hosts."""
+    return HWO_CONTRAST_FLOOR * 10.0 ** (0.2 * max(mag_v - HWO_VMAG_REF, 0.0))
 
 
 def hwo_imaging(star: Star, planet: Planet) -> Observation:
     """Reflected-light direct-imaging detectability for HWO (2040s, notional).
 
     Contrast at quadrature: C = A_g * Phi(90deg) * (Rp / a)^2 with geometric
-    albedo A_g=0.3 and Lambert phase Phi(90)=1/pi. Angular separation is the
-    quadrature projected separation a/d."""
+    albedo A_g from the planet's atmosphere class (HWO_GEOMETRIC_ALBEDO) and
+    Lambert phase Phi(90)=1/pi. Angular separation is the quadrature
+    projected separation a/d. Detection requires the contrast to clear the
+    brightness-dependent post-processed floor within the working angles."""
+    atm = planet.atmosphere
+    albedo = (HWO_GEOMETRIC_ALBEDO.get(atm.atm_class, HWO_DEFAULT_ALBEDO)
+              if atm is not None else HWO_DEFAULT_ALBEDO)
     a_m = planet.a * AU
-    contrast = 0.3 * (1.0 / math.pi) * (planet.radius * R_EARTH / a_m) ** 2
+    contrast = albedo * (1.0 / math.pi) * (planet.radius * R_EARTH / a_m) ** 2
     sep_mas = planet.a / star.distance_pc * 1000.0   # a[AU]/d[pc] = sep["]
 
     reachable = (star.mag_v < HWO_VMAG_LIMIT
                  and star.distance_pc < HWO_DIST_LIMIT_PC)
     resolved = HWO_IWA_MAS < sep_mas < HWO_OWA_MAS
-    bright_enough = contrast > HWO_CONTRAST_FLOOR
+    floor = hwo_contrast_floor(star.mag_v)
+    bright_enough = contrast > floor
     det = reachable and resolved and bright_enough
 
     if not reachable:
-        note = (f"host outside HWO target list (V={star.mag_v:.1f}, "
-                f"d={star.distance_pc:.0f} pc; needs V<{HWO_VMAG_LIMIT}, "
+        note = (f"host outside HWO reach (V={star.mag_v:.1f}, "
+                f"d={star.distance_pc:.0f} pc; needs V<{HWO_VMAG_LIMIT:.0f}, "
                 f"d<{HWO_DIST_LIMIT_PC:.0f} pc)")
     elif not resolved:
         note = (f"separation {sep_mas:.1f} mas outside working angles "
                 f"[{HWO_IWA_MAS:.0f}, {HWO_OWA_MAS:.0f}] mas")
     elif not bright_enough:
-        note = f"contrast {contrast:.1e} below ~{HWO_CONTRAST_FLOOR:.0e} floor"
+        note = (f"contrast {contrast:.1e} (A_g={albedo:.2f}) below "
+                f"{floor:.1e} floor at V={star.mag_v:.1f}")
     else:
-        note = "FUTURE (2040s, pre-Phase-A specs): directly imageable"
-    snr_proxy = contrast / HWO_CONTRAST_FLOOR if reachable and resolved else 0.0
+        note = (f"FUTURE (2040s, pre-Phase-A specs): directly imageable "
+                f"(A_g={albedo:.2f}, floor {floor:.1e} at V={star.mag_v:.1f})")
+    snr_proxy = contrast / floor if reachable and resolved else 0.0
     return Observation("HWO imaging (2040s)", "imaging", reachable, note,
                        0.0, 0.0, snr_proxy, 0.0, snr_proxy, det,
                        contrast=contrast, separation_mas=sep_mas)

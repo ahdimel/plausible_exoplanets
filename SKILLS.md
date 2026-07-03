@@ -7,9 +7,15 @@ architecture; this file is "how do I do X" with the traps called out.
 
 ```bash
 rm -f worlds.db   # schema version mismatch raises; DBs are disposable
-.venv/bin/exoverse --db worlds.db generate --n 10000 --seed 42
+.venv/bin/exoverse --db worlds.db generate --n 100000 --seed 42
+.venv/bin/exoverse --db neighborhood.db generate --n 20000 --seed 137 --dmax 30
 ```
-- ~10k systems takes a couple of minutes; run in background for larger N.
+- Generation runs ~2000 systems/s (100k ≈ 1 min). SeedSequence children are
+  a stream: growing N keeps all earlier (seed, name) worlds identical.
+- `--dmax` (pc) makes a solar-neighborhood population for direct-imaging
+  studies. It rescales ONE rng.random() call, so it never shifts the random
+  stream; it is stored in DB meta and must be passed to re-generation
+  (`db.dmax_pc` — cli lightcurve and web app already do).
 - Changing ANY rng draw inside `generate_system` (order, count, distribution)
   changes every world downstream of that draw. That's allowed — worlds are
   versionless — but re-run `generate`, `validate`, and the tests afterwards,

@@ -13,8 +13,9 @@ from .generate import generate_population
 
 
 def cmd_generate(args) -> None:
-    print(f"Generating {args.n} systems (seed={args.seed}) -> {args.db}")
-    stats = generate_population(args.db, args.n, args.seed)
+    print(f"Generating {args.n} systems (seed={args.seed}, "
+          f"dmax={args.dmax:.0f} pc) -> {args.db}")
+    stats = generate_population(args.db, args.n, args.seed, dmax_pc=args.dmax)
     print(json.dumps(stats, indent=2, default=str))
 
 
@@ -146,7 +147,8 @@ def cmd_lightcurve(args) -> None:
     if s is None:
         print(f"System '{args.system}' not found", file=sys.stderr)
         sys.exit(1)
-    system = generate_system(s["seed"], s["name"])  # deterministic re-generation
+    # deterministic re-generation (dmax_pc from meta keeps distances exact)
+    system = generate_system(s["seed"], s["name"], dmax_pc=db.dmax_pc)
     letters = "bcdefghijklmn"
     idx = letters.index(args.planet)
     if idx >= len(system.planets):
@@ -221,6 +223,9 @@ def main(argv=None) -> None:
     g = sub.add_parser("generate", help="generate a population")
     g.add_argument("--n", type=int, default=500)
     g.add_argument("--seed", type=int, default=42)
+    g.add_argument("--dmax", type=float, default=300.0,
+                   help="max host distance in pc (30 = solar neighborhood "
+                        "for direct-imaging studies; default 300)")
     g.set_defaults(func=cmd_generate)
 
     l = sub.add_parser("list", help="list systems")

@@ -8,7 +8,8 @@ import pytest
 
 from exoverse.archive import ArchivePlanet, CANONICAL_COLUMNS
 from exoverse.atmospheres import (
-    assign_atmosphere, compute_esm, compute_tsm, score_atmosphere_observability,
+    Atmosphere, assign_atmosphere, compute_esm, compute_tsm,
+    score_atmosphere_observability,
 )
 from exoverse.constants import R_EARTH, R_JUP, R_SUN
 from exoverse.flags import Severity
@@ -173,6 +174,62 @@ def test_hwo_rejects_distant_host():
     sun.mag_v = 4.83 + 5 * math.log10(150.0 / 10.0)
     earth = make_planet(1.0, 1.0, 365.25)
     assert not hwo_imaging(sun, earth).detectable
+
+
+def _bare_atm(cls: str) -> Atmosphere:
+    return Atmosphere(atm_class=cls, mu=2.3, scale_height_km=0.0,
+                      delta_1h_ppm=0.0, feature_ppm=0.0, cloud_factor=1.0,
+                      tsm=0.0, esm=0.0, tsm_priority=False)
+
+
+def test_hwo_albedo_tracks_atmosphere_class():
+    """A H/He giant reflects ~4x more than the same body if airless
+    (Jupiter A_g~0.5 vs Moon ~0.12); no atmosphere falls back to 0.3."""
+    sun = make_sun()
+    jup = make_planet(11.2, 318.0, 2922.0)   # ~4 AU -> 400 mas at 10 pc
+    default = hwo_imaging(sun, jup).contrast
+    jup.atmosphere = _bare_atm("h_he")
+    bright = hwo_imaging(sun, jup)
+    jup.atmosphere = _bare_atm("airless")
+    dark = hwo_imaging(sun, jup)
+    assert bright.contrast / dark.contrast == pytest.approx(0.50 / 0.12)
+    assert dark.contrast < default < bright.contrast
+    assert bright.detectable   # a 4-AU giant at 10 pc is an easy HWO target
+
+
+def test_dmax_rescales_distance_without_touching_the_worlds():
+    """The solar-neighborhood distance cap must only rescale distance and
+    apparent magnitudes: same seed => identical star and planets otherwise."""
+    far = generate_system(1234, "D-far")                # dmax 300 (default)
+    near = generate_system(1234, "D-near", dmax_pc=30.0)
+    assert near.star.distance_pc < 30.0
+    # Distance scales by exactly 1/10 (unless clamped at the 5 pc floor)
+    if near.star.distance_pc > 5.0:
+        assert near.star.distance_pc == pytest.approx(far.star.distance_pc / 10)
+    assert near.star.mass == far.star.mass
+    assert near.star.teff == far.star.teff
+    assert len(near.planets) == len(far.planets)
+    for a, b in zip(near.planets, far.planets):
+        assert a.period == b.period and a.radius == b.radius
+    # Apparent magnitudes brighten by the distance modulus
+    assert near.star.mag_v < far.star.mag_v
+
+
+def test_hwo_floor_degrades_for_faint_hosts():
+    """Fainter hosts stay on the target list but need more contrast:
+    photon-limited floor 10^(0.2*(V-7)) above V=7."""
+    earth = make_planet(1.0, 1.0, 365.25)
+    bright_host = make_sun()                 # V=4.83 at 10 pc
+    faint_host = make_sun()
+    faint_host.mag_v = 10.5                  # nearby late-K/M dwarf regime
+    b, f = hwo_imaging(bright_host, earth), hwo_imaging(faint_host, earth)
+    assert f.usable                          # V<11: still evaluated
+    assert f.snr_total < b.snr_total
+    assert b.snr_total == pytest.approx(f.snr_total
+                                        * 10.0 ** (0.2 * (10.5 - 7.0)))
+    too_faint = make_sun()
+    too_faint.mag_v = 12.0
+    assert not hwo_imaging(too_faint, earth).usable
 
 
 # ------------------------------------------------------------------- archive
