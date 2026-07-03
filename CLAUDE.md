@@ -106,6 +106,20 @@ mid-sequence, it breaks reproducibility of every stored world) →
 
 ## Where the last session left off / natural next steps
 
+- v0.4 / dichotomy study Phase 0 (2026-07-03): ACTIVE research project —
+  decomposing the Kepler dichotomy into (size-correlation sigma_R,
+  inclination-dispersion sigma_i); plan + audit in docs/phase0_audit.md,
+  prior-art verdict in docs/prior_art_syssim.md. Geometry fix landed:
+  mutual inclinations now tilt at a random nodal azimuth
+  (system.tilted_inclination_deg) — the old +-full-tilt inflated projected
+  scatter by sqrt(2). Both DBs regenerated; same physical worlds (draw
+  count unchanged; only inc_deg moved). NEW baseline: null
+  singles-per-multi 4.43 (was 5.52) vs real 4.06 (heterogeneous census)
+  / 3.63 (DR25 KOIs C+C) — paper §5.5 numbers are STALE, refresh deferred
+  until the Phase 2 DR25 catalog ingestion defines the final comparison.
+  DR25 KOI + stellar tables verified reachable via TAP (stellar =
+  `keplerstellar WHERE st_delivname='q1_q17_dr25_stellar'`, has per-target
+  dutycycle/dataspan/rrmscdpp/mesthres).
 - v0.3 (2026-07-02): three upgrades landed together, ALL worlds regenerated
   (schema v3). (1) Per-planet V-band geometric albedo
   (atmospheres.sample_geometric_albedo): Teq-dependent Sudarsky-like curve
