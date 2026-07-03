@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>exoverse: The Worlds Surveys Don't See</title>
+<style>
+  :root {
+    --paper: #fbfcfd;
+    --surface: #f4f6f9;
+    --ink: #141a26;
+    --ink-2: #4d5668;
+    --ink-3: #7d8698;
+    --hairline: #dfe3ea;
+    --baseline: #c2c9d4;
+    --link: #1c5cab;
+    --accent: #2a78d6;
+    --ord-1: #86b6ef;
+    --ord-2: #2a78d6;
+    --ord-3: #104281;
+    --dot-faint: #c9d5e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #12151c;
+      --surface: #191d26;
+      --ink: #e8eaf0;
+      --ink-2: #a8b0c0;
+      --ink-3: #6f7889;
+      --hairline: #262c38;
+      --baseline: #3a4252;
+      --link: #6da7ec;
+      --accent: #3987e5;
+      --ord-1: #6da7ec;
+      --ord-2: #3987e5;
+      --ord-3: #184f95;
+      --dot-faint: #2b3345;
+    }
+  }
+  * { margin: 0; box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Palatino, "Palatino Linotype", "Book Antiqua", "URW Palladio L", Georgia, serif;
+    font-size: 17px;
+    line-height: 1.62;
+  }
+  .sans { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  .sky { display: block; width: 100%; height: 128px; }
+
+  main { max-width: 900px; margin: 0 auto; padding: 0 24px 96px; }
+  .col { max-width: 66ch; margin: 0 auto; }
+
+  /* ---------------- front matter ---------------- */
+  header.front { padding: 40px 0 8px; border-bottom: 1px solid var(--hairline); }
+  .eyebrow {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 18px;
+  }
+  .eyebrow b { color: var(--link); font-weight: 600; }
+  h1 {
+    font-size: clamp(30px, 5.4vw, 44px);
+    line-height: 1.14; font-weight: 500; letter-spacing: -0.01em;
+    text-wrap: balance; max-width: 22ch;
+  }
+  .subtitle {
+    margin-top: 14px; font-size: clamp(17px, 2.6vw, 20px);
+    font-style: italic; color: var(--ink-2); max-width: 52ch; text-wrap: balance;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 8px 28px;
+    margin: 26px 0 30px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13px; color: var(--ink-3);
+  }
+  .meta span b { color: var(--ink-2); font-weight: 600; }
+
+  /* ---------------- abstract & stats ---------------- */
+  .abstract { padding: 30px 0 6px; }
+  .abstract h2 {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 600; margin-bottom: 12px;
+  }
+  .abstract p { color: var(--ink-2); font-size: 16.5px; }
+  .statband {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px; margin: 34px auto 0; max-width: 66ch;
+  }
+  .stat {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 6px; padding: 14px 16px 12px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .stat .v { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; }
+  .stat .v small { font-size: 15px; font-weight: 500; color: var(--ink-2); }
+  .stat .k { font-size: 12px; color: var(--ink-3); margin-top: 3px; line-height: 1.4; }
+
+  /* ---------------- body sections ---------------- */
+  section { padding-top: 44px; }
+  h2.sec {
+    font-size: 25px; font-weight: 500; letter-spacing: -0.005em;
+    text-wrap: balance; margin-bottom: 16px;
+  }
+  h2.sec .n { color: var(--ink-3); font-variant-numeric: tabular-nums; margin-right: 10px; }
+  h3.sub { font-size: 18.5px; font-weight: 600; margin: 28px 0 10px; text-wrap: balance; }
+  .col p + p { margin-top: 14px; }
+  .col ul { padding-left: 22px; margin-top: 12px; display: grid; gap: 9px; }
+  .col li::marker { color: var(--ink-3); }
+  a { color: var(--link); text-decoration-color: color-mix(in srgb, var(--link) 40%, transparent); text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  em.term { font-style: italic; }
+  .k-inline { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.82em; background: var(--surface); border: 1px solid var(--hairline); border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+
+  /* ---------------- figures ---------------- */
+  figure.viz {
+    margin: 30px auto; max-width: 760px;
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 8px; padding: 20px 22px 14px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .viz .t { font-size: 14.5px; font-weight: 650; }
+  .viz .s { font-size: 12.5px; color: var(--ink-3); margin: 3px 0 14px; }
+  .viz svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .viz text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .viz .rowlabel { font-size: 12.5px; fill: var(--ink-2); }
+  .viz .val { font-size: 12.5px; font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
+  .viz .axisnote { font-size: 11px; fill: var(--ink-3); }
+  .viz .bl { stroke: var(--baseline); stroke-width: 1; }
+  .viz .bar, .viz svg text { pointer-events: none; }
+  .viz .bar { transition: opacity .12s; }
+  @media (prefers-reduced-motion: reduce) { .viz .bar { transition: none; } }
+  .viz .hit:hover + .bar, .viz .hit:focus + .bar { opacity: .78; }
+  figcaption.cap {
+    max-width: 66ch; margin: -16px auto 30px; padding: 0 4px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13px; line-height: 1.55; color: var(--ink-3);
+  }
+  figcaption.cap b { color: var(--ink-2); }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+  @media (max-width: 640px) { .duo { grid-template-columns: 1fr; } }
+  details.tbl { margin-top: 10px; border-top: 1px solid var(--hairline); padding-top: 8px; }
+  details.tbl summary { font-size: 12px; color: var(--ink-3); cursor: pointer; }
+  details.tbl table { margin-top: 8px; font-size: 12.5px; border-collapse: collapse; }
+  details.tbl td, details.tbl th { padding: 3px 14px 3px 0; text-align: left; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  details.tbl th { font-weight: 600; color: var(--ink-3); }
+
+  #tip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--ink); color: var(--paper);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 12px; line-height: 1.4; padding: 6px 9px; border-radius: 5px;
+    max-width: 240px;
+  }
+  #tip b { font-variant-numeric: tabular-nums; }
+
+  /* ---------------- prose tables ---------------- */
+  .tablewrap { overflow-x: auto; margin: 22px auto; max-width: 760px; }
+  table.data {
+    border-collapse: collapse; width: 100%; min-width: 540px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 13.5px;
+  }
+  table.data caption {
+    text-align: left; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-3); padding-bottom: 10px; font-weight: 600;
+  }
+  table.data th {
+    text-align: left; font-weight: 600; color: var(--ink-3); font-size: 12px;
+    letter-spacing: 0.04em; border-bottom: 1px solid var(--baseline); padding: 6px 18px 6px 0;
+  }
+  table.data td {
+    border-bottom: 1px solid var(--hairline); padding: 8px 18px 8px 0;
+    color: var(--ink-2); vertical-align: top;
+  }
+  table.data td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.data td:first-child { color: var(--ink); }
+
+  /* ---------------- references ---------------- */
+  ol.refs { padding-left: 26px; display: grid; gap: 10px; font-size: 15px; color: var(--ink-2); }
+  ol.refs li::marker { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .refnote { font-size: 13px; color: var(--ink-3); margin-top: 18px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  sup.r { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 11px; }
+  sup.r a { text-decoration: none; }
+  footer.end {
+    margin-top: 70px; padding-top: 18px; border-top: 1px solid var(--hairline);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 12.5px; color: var(--ink-3);
+  }
+</style>
+</head>
+<body>
+
+<svg class="sky" id="sky" aria-hidden="true" preserveAspectRatio="xMidYMid slice"></svg>
+
+<main>
+  <header class="front">
+    <div class="col">
+      <p class="eyebrow"><b>exoverse</b> · project paper · July 2026</p>
+      <h1>The Worlds Surveys Don&rsquo;t See</h1>
+      <p class="subtitle">A physics-validated synthetic exoplanet population for measuring what transit surveys and future observatories miss</p>
+      <div class="meta">
+        <span><b>Populations</b> 120,000 systems, 263,367 planets</span>
+        <span><b>Instruments</b> TESS · Kepler · JWST · Roman · HWO</span>
+        <span><b>Status</b> working prototype, v0.2</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="abstract col">
+    <h2>Abstract</h2>
+    <p>
+      Every exoplanet catalog is the output of a filter: survey geometry, instrument noise, and
+      observing baselines decide which worlds become data points and which remain invisible.
+      <em>exoverse</em> inverts the problem. Instead of starting from what was detected, it generates
+      the full spectrum of plausible planetary systems bottom-up — from stellar physics and measured
+      occurrence statistics — then observes each world with modeled instruments, real and future.
+      The gap between what exists in the synthetic universe and what its instruments recover is a
+      direct measurement of survey selection effects. In a 100,000-system population we find that
+      99% of habitable-zone rocky planets are invisible to every transit survey modeled, purely by
+      geometry. A companion 20,000-system solar-neighborhood population gives the Habitable Worlds
+      Observatory a realistic target field: it images 522 planets, including 44 habitable-zone
+      Earth-size candidates — which scales to ≈22 exo-Earths for the real solar neighborhood,
+      closely matching the mission&rsquo;s Astro2020 design goal of 25, without being tuned to it.
+    </p>
+  </div>
+
+  <div class="statband sans">
+    <div class="stat"><div class="v">120,000</div><div class="k">systems across two populations</div></div>
+    <div class="stat"><div class="v">99<small>%</small></div><div class="k">of HZ rocky planets invisible to transit surveys</div></div>
+    <div class="stat"><div class="v">44</div><div class="k">exo-Earth candidates imaged by HWO (synthetic 30 pc field)</div></div>
+    <div class="stat"><div class="v">≈22 <small>vs 25</small></div><div class="k">scaled exo-Earth yield vs the Astro2020 goal</div></div>
+  </div>
+
+  <!-- ================================================================ -->
+  <section class="col">
+    <h2 class="sec"><span class="n">1</span>Motivation</h2>
+    <p>
+      Nearly 6,000 exoplanets are confirmed, and most were found the same way: a planet crossed the
+      face of its star and dimmed it for a few hours. The transit method is spectacularly productive
+      and spectacularly biased. It requires an orbital plane aligned with our line of sight — a
+      coin-flip a planet at 1&nbsp;AU around a Sun-like star wins less than half a percent of the
+      time — and it favors big planets on short orbits around quiet, bright stars. The catalog we
+      reason from is not the population that exists; it is the population that geometry and noise
+      let through.
+    </p>
+    <p>
+      Astronomers correct for this with completeness models fitted to each survey. exoverse takes
+      the complementary route: <em class="term">build the underlying population first</em>. If you
+      can generate stellar systems that are physically self-consistent and statistically faithful to
+      known occurrence rates, you can push them through modeled instruments and watch the selection
+      function act on individual worlds — not as an abstract correction factor, but as a named
+      planet, with a mass and a sky position, that a given telescope does or does not see.
+    </p>
+  </section>
+
+  <!-- ================================================================ -->
+  <section class="col">
+    <h2 class="sec"><span class="n">2</span>Goals and approach</h2>
+    <p>The project has three standing goals:</p>
+    <ul>
+      <li><b>Generate</b> plausible planetary systems from physics upward — a Kroupa mass function
+        for the stars, main-sequence scaling relations, occurrence-shaped periods and radii
+        (including the Fulton radius valley), probabilistic mass–radius relations, orbital-stability
+        screening, stellar noise, and atmosphere assignment.</li>
+      <li><b>Observe</b> every world with modeled instruments spanning past, present, and future:
+        Kepler (archival), TESS, JWST transit spectroscopy, ground-based 1-m surveys, the Roman
+        Space Telescope&rsquo;s bulge survey, and the Habitable Worlds Observatory&rsquo;s
+        coronagraphic imaging.</li>
+      <li><b>Validate</b> the generator against reality — running real cataloged planets through the
+        same physical-validity rules, and comparing the synthetic <em>detectable</em> population
+        against the real <em>detected</em> one with the selection forward-modeled.</li>
+    </ul>
+    <p>
+      Three design commitments shape everything. First, <em class="term">plausibility is
+      first-class output</em>: every approximation carries a severity-graded flag. Hard physics
+      violations (denser than pure iron, above the deuterium-burning mass limit, dynamically
+      unstable pairs) are rejected and resampled; questionable-but-possible regimes are kept and
+      labeled, because &ldquo;plausible but uncertain&rdquo; is exactly where the interesting
+      science lives. Second, <em class="term">every world is reproducible</em>: a system regenerates
+      bit-for-bit from its random seed, so light curves are never stored — they are re-derived on
+      demand. Third, <em class="term">the database is the product</em>: 120,000 systems, each
+      individually inspectable through a CLI and a web interface, with full metadata down to
+      limb-darkening coefficients and cloud-suppression factors.
+    </p>
+    <h3 class="sub">2.1 &ensp;Two populations, two questions</h3>
+    <p>
+      Version 0.2 maintains two datasets. The main population — 100,000 systems with host stars out
+      to 300&nbsp;pc — answers transit-survey questions, where the observable volume is deep. But a
+      deep volume starves a direct-imaging mission: only ~0.1% of its systems fall within the
+      Habitable Worlds Observatory&rsquo;s ~30&nbsp;pc reach. So a second population caps host
+      distance at 30&nbsp;pc — 20,000 systems representing the solar neighborhood — generated by the
+      same physics with a single rescaled distance draw, leaving every other property untouched.
+    </p>
+  </section>
+
+  <!-- ================================================================ -->
+  <section class="col">
+    <h2 class="sec"><span class="n">3</span>Validation against the real catalog</h2>
+    <p>
+      Before trusting conclusions from synthetic worlds, the generator is audited against 8,240
+      confirmed planets. The audit runs in both directions: real planets are pushed through
+      exoverse&rsquo;s physical-validity rules, and the synthetic Kepler-detectable population is
+      compared against real transit discoveries.
+    </p>
+    <div class="tablewrap">
+      <table class="data">
+        <caption>Physics-rule audit — real planets vs exoverse validity rules</caption>
+        <thead><tr><th>Rule</th><th>Violations</th><th>Interpretation</th></tr></thead>
+        <tbody>
+          <tr><td>Deuterium-burning mass limit</td><td class="num">54 / 1,420 &nbsp;(3.8%)</td>
+            <td>Real transiting brown dwarfs that catalogs file alongside planets — a regime exoverse excludes by design.</td></tr>
+          <tr><td>Denser than pure iron</td><td class="num">14 / 513 &nbsp;(2.7%)</td>
+            <td>Catalog entries with low-signal mass measurements; reflects measurement error, not physics.</td></tr>
+          <tr><td>Below super-puff density floor</td><td class="num">0 / 513</td>
+            <td>Clean.</td></tr>
+          <tr><td>Orbit grazes the star</td><td class="num">0 / 3,005</td>
+            <td>Clean.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      No real planet violates a rule for a reason the generator can&rsquo;t account for — the two
+      nonzero rows are known catalog artifacts, and their rates are stable from the earlier
+      10,000-system run to 100,000. On the population side, the period distribution of synthetic
+      Kepler-detectable planets tracks real discoveries closely (median log-period 0.98 vs 0.90),
+      while the host-temperature comparison fails by construction — real surveys target Sun-like
+      stars, whereas exoverse samples the true, M-dwarf-dominated mass function. That deliberate
+      failure is the point: it demonstrates the selection function is being modeled rather than
+      inherited.
+    </p>
+  </section>
+
+  <!-- ================================================================ -->
+  <section class="col">
+    <h2 class="sec"><span class="n">4</span>Findings</h2>
+
+    <h3 class="sub">4.1 &ensp;Scale makes rare regimes measurable</h3>
+    <p>
+      Growing the population tenfold (the first 10,000 worlds are preserved exactly — seeds are a
+      stream) populated regimes that were statistical noise before: 671 ultra-short-period planets,
+      47 mega-Earths, 18 ultra-hot worlds, and 4 super-puffs now exist in queryable numbers.
+      Detection counts scale linearly with population size, confirming the smaller run wasn&rsquo;t
+      a fluke, and the Kepler-detectable radius median refined from 0.34 to 0.32&nbsp;dex — a
+      sample-size sharpening, since the generation physics is unchanged.
+    </p>
+  </section>
+
+  <figure class="viz" id="fig1">
+    <div class="t">Detections by observatory — 100,000-system population</div>
+    <div class="s">Planets recovered per modeled instrument, of 3,257 transiting (219,491 total)</div>
+    <div data-chart="fig1"></div>
+    <details class="tbl"><summary>View data as table</summary>
+      <table><thead><tr><th>Observatory</th><th>Detections</th></tr></thead><tbody id="fig1t"></tbody></table>
+    </details>
+  </figure>
+  <figcaption class="cap"><b>Figure 1.</b> The same synthetic universe seen through seven instruments.
+    Long-baseline space photometry (Roman, Kepler) and targeted JWST spectroscopy recover thousands;
+    a single TESS sector recovers 72. The Habitable Worlds Observatory recovers exactly one — not
+    because the model is broken, but because a 300&nbsp;pc survey volume contains almost no stars
+    within its ~30&nbsp;pc imaging reach. Fixing that mismatch motivates the neighborhood population of §4.3.</figcaption>
+
+  <figure class="viz" id="fig2">
+    <div class="t">The habitable-zone blind spot</div>
+    <div class="s">Habitable-zone rocky planets in the 100,000-system population, on a shared linear scale</div>
+    <div data-chart="fig2"></div>
+    <details class="tbl"><summary>View data as table</summary>
+      <table><thead><tr><th>Stage</th><th>Planets</th></tr></thead><tbody id="fig2t"></tbody></table>
+    </details>
+  </figure>
+  <figcaption class="cap"><b>Figure 2.</b> Of 17,141 habitable-zone rocky planets that exist in the
+    synthetic universe, 202 (1.2%) happen to transit, and 171 (1.0%) are recoverable by any modeled
+    transit instrument. The bars are drawn to a common scale deliberately: the sliver <em>is</em> the finding —
+    99% of the most interesting worlds are geometrically invisible to the method that built our catalogs.</figcaption>
+
+  <section class="col">
+    <h3 class="sub">4.2 &ensp;Transit surveys are blind to 99% of habitable-zone rocky worlds</h3>
+    <p>
+      Figure 2 states the project&rsquo;s central result at population scale. The transit
+      method&rsquo;s geometric filter removes 98.8% of habitable-zone rocky planets before noise or
+      cadence even enter the picture, and instrument thresholds remove a further sliver. Statements
+      like &ldquo;transit probability is low&rdquo; are textbook; what a synthetic population adds
+      is the ability to hold the missing 16,970 worlds in a database — each with a name, a host
+      star, an atmosphere class, and the specific reason it was missed.
+    </p>
+
+    <h3 class="sub">4.3 &ensp;An exo-Earth budget for the Habitable Worlds Observatory</h3>
+    <p>
+      HWO — NASA&rsquo;s planned flagship for the 2040s — will not use transits at all. It will
+      directly image reflected starlight, and its Astro2020 charge is to characterize at least 25
+      potentially habitable exo-Earths<sup class="r"><a href="#r6">[6]</a></sup>. exoverse models it
+      with a coronagraphic contrast floor of 3×10<sup>−11</sup> that degrades photon-limited for
+      hosts fainter than V≈7, working angles of 60–500&nbsp;mas, and reflected-light contrast
+      computed from a geometric albedo assigned by atmosphere class — Jupiter-like 0.50 down to
+      airless 0.12, anchored on solar-system bodies.
+    </p>
+    <p>
+      In the 20,000-system neighborhood population, HWO images 522 planets. Crucially, 44 of them
+      are <em class="term">exo-Earth candidates</em> — habitable-zone planets of 0.8–1.4 Earth
+      radii. Because the synthetic field holds roughly twice as many stars as the real solar
+      neighborhood within 30&nbsp;pc, the scaled prediction is ≈22 exo-Earths — landing within
+      striking distance of the mission&rsquo;s ≥25 goal from independent physics, with no tuning
+      toward that number.
+    </p>
+  </section>
+
+  <figure class="viz" id="fig3">
+    <div class="duo">
+      <div>
+        <div class="t">Where the exo-Earths go</div>
+        <div class="s">2,545 HZ Earth-size planets within 30 pc, by HWO outcome</div>
+        <div data-chart="fig3a"></div>
+      </div>
+      <div>
+        <div class="t">Detected exo-Earth hosts by spectral type</div>
+        <div class="s">All 44 detections orbit F, G, or K stars</div>
+        <div data-chart="fig3b"></div>
+      </div>
+    </div>
+    <details class="tbl"><summary>View data as table</summary>
+      <table><thead><tr><th>Category</th><th>Planets</th></tr></thead><tbody id="fig3t"></tbody></table>
+    </details>
+  </figure>
+  <figcaption class="cap"><b>Figure 3.</b> The exo-Earth loss budget. Left: 79% of habitable-zone
+    Earth-size planets within 30&nbsp;pc orbit hosts too faint to image (V ≥ 11 — overwhelmingly M
+    dwarfs), and another 20% sit inside the 60&nbsp;mas inner working angle, where an M dwarf&rsquo;s
+    close-in habitable zone hides. Right: the survivors orbit K, G, and F stars — independently
+    reproducing the FGK-dominated target lists real HWO planning has converged on<sup class="r"><a href="#r5">[5]</a></sup>.</figcaption>
+
+  <section class="col">
+    <p>
+      The loss accounting explains <em>why</em> M dwarfs — the most common stars — contribute
+      nothing: their habitable zones are angularly too small to resolve and their photospheres too
+      faint to post-process against, a conclusion that emerges here from the noise model rather than
+      from an imposed target list. The atmosphere-class albedo also leaves a visible fingerprint:
+      only 5 of 1,051 airless worlds are ever imaged, while cloudy secondary-atmosphere and steam
+      worlds dominate the detections.
+    </p>
+  </section>
+
+  <!-- ================================================================ -->
+  <section class="col">
+    <h2 class="sec"><span class="n">5</span>Future directions</h2>
+    <p>
+      The findings above are demonstrations of an instrument — a population you can point at
+      questions. Below are the directions where that instrument appears most valuable to the wider
+      community, based on a survey of current literature.
+    </p>
+
+    <h3 class="sub">5.1 &ensp;Yield forecasting for missions now launching</h3>
+    <p>
+      ESA&rsquo;s PLATO launches in late 2026, and yield studies built on population synthesis are
+      already shaping its strategy — recent work forward-models ~13,000 expected detections across
+      the Galactic thin disk, thick disk, and halo<sup class="r"><a href="#r1">[1]</a></sup>.
+      Roman&rsquo;s bulge survey is predicted to find 60,000–200,000 transiting planets via
+      pixel-level simulation<sup class="r"><a href="#r2">[2]</a></sup>. exoverse&rsquo;s
+      contribution to this class of work is speed and inspectability: at ~2,000 fully-validated
+      systems per second, survey trade studies (cadence, baseline, magnitude limits) can be re-run
+      interactively, with every gained or lost detection traceable to a specific named world.
+    </p>
+
+    <h3 class="sub">5.2 &ensp;HWO target selection and design trades</h3>
+    <p>
+      The HWO community is actively assembling prioritized target lists — the 2025 Target Stars and
+      Systems catalog<sup class="r"><a href="#r5">[5]</a></sup>, the ExEP Mission Star
+      List<sup class="r"><a href="#r6">[6]</a></sup>, and new stellar-activity catalogs aimed
+      squarely at reducing yield uncertainty. Published yield analyses identify the occurrence rate
+      of Earth-like planets (η<sub>⊕</sub>) and exozodiacal dust as the dominant unknowns, and ask
+      which design changes would protect the 25-exo-Earth goal<sup class="r"><a href="#r7">[7]</a></sup>.
+      A synthetic neighborhood population complements this directly: loss-mode budgets like Figure 3
+      quantify the marginal yield of a smaller inner working angle versus a deeper contrast floor —
+      the exact trade Phase-A architecture studies must settle. Extending exoverse with exozodi
+      levels and multi-visit scheduling would make those trades quantitative.
+    </p>
+
+    <h3 class="sub">5.3 &ensp;Demographic inference and η<sub>⊕</sub></h3>
+    <p>
+      Occurrence-rate studies must invert the selection function to recover the true population from
+      the observed one. A generative population where the truth is known by construction is the
+      natural test harness for those inversion methods: inject a synthetic universe, apply a modeled
+      survey, hand the &ldquo;detections&rdquo; to an occurrence-rate pipeline, and check whether it
+      recovers the input. This closed-loop validation is difficult with real data — the answer is
+      unknown — and is a standing gap the community fills with per-survey injection–recovery
+      exercises that don&rsquo;t transfer between instruments.
+    </p>
+
+    <h3 class="sub">5.4 &ensp;Training corpora for machine-learning detection</h3>
+    <p>
+      Deep-learning vetting models now routinely triage transit candidates at ~97% precision, and
+      several groups report that models trained on <em>combined real and synthetic</em> light curves
+      outperform those trained on real data alone<sup class="r"><a href="#r3">[3]</a>&nbsp;<a href="#r4">[4]</a></sup>.
+      exoverse generates limb-darkened light curves with realistic stellar noise (granulation,
+      spots, flares) and perfect ground-truth labels — including the hard negatives that matter:
+      grazing transits, active hosts, and depths straddling detection thresholds. A pipeline
+      exporting labeled light-curve corpora would be a small extension with a direct user base.
+    </p>
+
+    <h3 class="sub">5.5 &ensp;An open, explorable universe</h3>
+    <p>
+      Because every world is individually inspectable — with plausibility flags that say
+      <em>why</em> a value is uncertain and citations for every approximation — the database doubles
+      as a teaching instrument for selection effects, observational bias, and instrument design.
+      Deploying the read-only web interface publicly, alongside downloadable populations, is the
+      lowest-effort path to community use. On the modeling roadmap: N-body verification of
+      tightly-packed systems, binary hosts, transit-timing variations, and radiative-transfer
+      spectra to replace scale-height heuristics.
+    </p>
+  </section>
+
+  <!-- ================================================================ -->
+  <section class="col">
+    <h2 class="sec"><span class="n">6</span>References</h2>
+    <ol class="refs">
+      <li id="r1">Boettner, C., et al. 2024, <a href="https://arxiv.org/abs/2407.15917">Exoplanets across Galactic stellar populations with PLATO: estimating exoplanet yields around FGK stars for the thin disk, thick disk and stellar halo</a>, A&amp;A 692, A150.</li>
+      <li id="r2">Wilson, R. F., et al. 2023, <a href="https://arxiv.org/abs/2305.16204">Transiting exoplanet yields for the Roman Galactic Bulge Time Domain Survey predicted from pixel-level simulations</a>, ApJS 269, 5.</li>
+      <li id="r3">2025, <a href="https://arxiv.org/abs/2507.19520">Exoplanet detection using machine learning models trained on synthetic light curves</a>, arXiv:2507.19520.</li>
+      <li id="r4">Cuéllar, S., et al. 2022, <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0268199">Deep learning exoplanet detection by combining real and synthetic data</a>, PLOS ONE 17, e0268199.</li>
+      <li id="r5">2025, <a href="https://arxiv.org/abs/2509.20544">HWO Target Stars and Systems: a prioritized community list of potential stellar targets for the Habitable Worlds Observatory&rsquo;s exo-Earth survey</a>, arXiv:2509.20544.</li>
+      <li id="r6">NASA Exoplanet Exploration Program, 2023, <a href="https://exoplanetarchive.ipac.caltech.edu/docs/2645_NASA_ExEP_Target_List_HWO_Documentation_2023.pdf">ExEP Mission Star List for the Habitable Worlds Observatory</a>.</li>
+      <li id="r7">2026, <a href="https://arxiv.org/abs/2606.04105">Predictive rankings of the probability for temperate terrestrial worlds for the HWO ExEP Mission Star List</a>, arXiv:2606.04105.</li>
+    </ol>
+    <p class="refnote">
+      Full modeling assumptions, sources, and volatility notes for each observatory — including
+      which numbers are requirement-era and expected to change — are maintained in the project&rsquo;s
+      <span class="k-inline">docs/OBSERVATORIES.md</span>. Populations regenerate deterministically:
+      <span class="k-inline">exoverse generate --n 100000 --seed 42</span> reproduces every world in this paper bit-for-bit.
+    </p>
+    <footer class="end">
+      exoverse v0.2 · populations of 2026-07-02 (seeds 42 &amp; 137) · validation snapshot: exoplanet.eu, 8,240 confirmed planets
+    </footer>
+  </section>
+</main>
+
+<div id="tip" role="status"></div>
+
+<script>
+(function () {
+  "use strict";
+  var css = function (v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); };
+
+  /* ---------- header sky: the population, to honest proportion ---------- */
+  /* 2,000 seeded dots; ~1.2% brightened — the transit-visible fraction.   */
+  function mulberry32(a) { return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }; }
+  var sky = document.getElementById("sky");
+  var W = 1600, H = 128, rnd = mulberry32(42), frag = "";
+  for (var i = 0; i < 2000; i++) {
+    var x = (rnd() * W).toFixed(1), y = (rnd() * H).toFixed(1);
+    var seen = rnd() < 0.012;
+    var r = seen ? 1.6 : (0.5 + rnd() * 0.7).toFixed(2);
+    frag += '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' +
+      (seen ? "var(--accent)" : "var(--dot-faint)") + '"/>';
+  }
+  sky.setAttribute("viewBox", "0 0 " + W + " " + H);
+  sky.innerHTML = frag;
+
+  /* ------------------------------ tooltip ------------------------------ */
+  var tip = document.getElementById("tip");
+  function showTip(evt, html) {
+    tip.innerHTML = html; tip.style.display = "block";
+    var pad = 14, w = tip.offsetWidth;
+    var x = Math.min(evt.clientX + pad, window.innerWidth - w - 8);
+    tip.style.left = x + "px";
+    tip.style.top = (evt.clientY + pad) + "px";
+  }
+  function hideTip() { tip.style.display = "none"; }
+
+  /* ------------------------- horizontal bar chart ---------------------- */
+  /* rows: [label, value, colorVar?, note?]; opts: {max, total, labelW}    */
+  function barChart(mount, rows, opts) {
+    var max = opts.max, total = opts.total || null;
+    var labelW = opts.labelW || 170, chartW = opts.width || 720;
+    var rowH = 30, barH = 16, top = 4;
+    var plotW = chartW - labelW - 64;
+    var hgt = top + rows.length * rowH + 14;
+    var svg = ['<svg viewBox="0 0 ' + chartW + " " + hgt + '" role="img" aria-label="' + opts.aria + '">'];
+    svg.push('<line class="bl" x1="' + labelW + '" y1="' + top + '" x2="' + labelW + '" y2="' + (top + rows.length * rowH - 8) + '"/>');
+    rows.forEach(function (d, i) {
+      var y = top + i * rowH, w = Math.max(d[1] / max * plotW, d[1] > 0 ? 2 : 0);
+      var color = d[2] || "var(--accent)";
+      var ry = y + (rowH - barH) / 2 - 4;
+      var cy = ry + barH / 2;
+      svg.push('<text class="rowlabel" x="' + (labelW - 10) + '" y="' + (cy + 4) + '" text-anchor="end">' + d[0] + "</text>");
+      // hit target (bigger than the mark), then bar with rounded data end
+      var rr = Math.min(4, w / 2);
+      svg.push('<rect class="hit" x="' + labelW + '" y="' + y + '" width="' + plotW + '" height="' + (rowH - 8) +
+        '" fill="transparent" tabindex="0" data-i="' + i + '"></rect>');
+      if (w > 0) {
+        svg.push('<path class="bar" d="M' + labelW + " " + ry + " h" + (w - rr) +
+          " a" + rr + " " + rr + " 0 0 1 " + rr + " " + rr +
+          " v" + (barH - 2 * rr) +
+          " a" + rr + " " + rr + " 0 0 1 -" + rr + " " + rr +
+          " h-" + (w - rr) + ' z" fill="' + color + '"/>');
+      } else {
+        svg.push('<circle class="bar" cx="' + (labelW + 3) + '" cy="' + cy + '" r="2.5" fill="' + color + '"/>');
+      }
+      var vlabel = d[1].toLocaleString("en-US") + (d[3] ? "&thinsp;" + d[3] : "");
+      svg.push('<text class="val" x="' + (labelW + Math.max(w, 4) + 8) + '" y="' + (cy + 4) + '">' + vlabel + "</text>");
+    });
+    svg.push("</svg>");
+    mount.innerHTML = svg.join("");
+    mount.querySelectorAll(".hit").forEach(function (h) {
+      var d = rows[+h.dataset.i];
+      var html = d[0] + ": <b>" + d[1].toLocaleString("en-US") + "</b>" +
+        (total ? " · " + (d[1] / total * 100).toFixed(d[1] / total < 0.02 ? 1 : 0) + "% of " + total.toLocaleString("en-US") : "");
+      h.addEventListener("mousemove", function (e) { showTip(e, html); });
+      h.addEventListener("mouseleave", hideTip);
+      h.addEventListener("focus", function () {
+        var r = h.getBoundingClientRect();
+        showTip({ clientX: r.left + 40, clientY: r.top }, html);
+      });
+      h.addEventListener("blur", hideTip);
+    });
+  }
+
+  function fillTable(id, rows) {
+    document.getElementById(id).innerHTML = rows.map(function (d) {
+      return "<tr><td>" + d[0] + "</td><td>" + d[1].toLocaleString("en-US") + "</td></tr>";
+    }).join("");
+  }
+
+  /* ------------------------------ figures ------------------------------ */
+  var fig1 = [
+    ["Roman GBTDS (2027+)", 2644],
+    ["JWST NIRSpec Prism", 2565],
+    ["Kepler (4 yr, archival)", 2522],
+    ["JWST NIRISS SOSS", 1893],
+    ["Ground 1-m survey", 454],
+    ["TESS (1 sector)", 72],
+    ["HWO imaging (2040s)", 1]
+  ];
+  barChart(document.querySelector('[data-chart="fig1"]'), fig1,
+    { max: 2644, labelW: 178, aria: "Bar chart of detections by observatory" });
+  fillTable("fig1t", fig1);
+
+  var fig2 = [
+    ["Exist in the population", 17141, "var(--ord-1)"],
+    ["Happen to transit", 202, "var(--ord-2)", "(1.2%)"],
+    ["Detectable by any survey", 171, "var(--ord-3)", "(1.0%)"]
+  ];
+  barChart(document.querySelector('[data-chart="fig2"]'), fig2,
+    { max: 17141, total: 17141, labelW: 178, aria: "Funnel of habitable-zone rocky planets from existing to detectable" });
+  fillTable("fig2t", fig2);
+
+  var fig3a = [
+    ["Host too faint (V ≥ 11)", 2002, "var(--ord-1)"],
+    ["Inside 60 mas working angle", 499, "var(--ord-2)"],
+    ["Detected by HWO", 44, "var(--ord-3)"]
+  ];
+  var fig3b = [
+    ["F stars", 10], ["G stars", 15], ["K stars", 19], ["M stars", 0]
+  ];
+  var duo = document.querySelectorAll("#fig3 [data-chart]");
+  barChart(duo[0], fig3a, { max: 2002, total: 2545, labelW: 165, width: 360, aria: "HWO outcomes for habitable-zone Earth-size planets within 30 parsecs" });
+  barChart(duo[1], fig3b, { max: 19, total: 44, labelW: 62, width: 360, aria: "Detected exo-Earth hosts by spectral type" });
+  fillTable("fig3t", fig3a.concat([["— hosts of the 44 —", ""]].map(function(d){return d;})).concat(fig3b));
+})();
+</script>
+
+</body>
+</html>
