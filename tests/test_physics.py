@@ -15,7 +15,9 @@ from exoverse.stars import (
     Star, bolometric_correction_v, generate_star, ms_luminosity, ms_radius,
     sample_kroupa_mass, spectral_type_from_teff,
 )
-from exoverse.system import generate_system, mutual_hill_delta
+from exoverse.system import (
+    generate_system, mutual_hill_delta, tilted_inclination_deg,
+)
 from exoverse.transits import compute_geometry, transit_flux
 
 
@@ -171,3 +173,43 @@ def test_generation_deterministic():
     assert len(s1.planets) == len(s2.planets)
     for p, q in zip(s1.planets, s2.planets):
         assert p.period == q.period and p.radius == q.radius
+
+
+# ------------------------------------------- mutual-inclination geometry
+def test_tilted_inclination_coplanar_limit():
+    # Zero mutual tilt must leave the system inclination unchanged
+    for i_sys in (0.0, 37.5, 90.0, 122.0, 180.0):
+        assert tilted_inclination_deg(i_sys, 0.0, 1.234) == pytest.approx(
+            i_sys, abs=1e-9)
+
+
+def test_tilted_inclination_node_extremes():
+    # Node 0 / pi recover the scalar +-tilt limits of the pre-v0.4 model
+    assert tilted_inclination_deg(80.0, 5.0, 0.0) == pytest.approx(75.0)
+    assert tilted_inclination_deg(80.0, 5.0, math.pi) == pytest.approx(85.0)
+    # Tilt through the pole folds to the mirror-equivalent chord
+    assert tilted_inclination_deg(3.0, 5.0, 0.0) == pytest.approx(2.0)
+
+
+def test_tilted_inclination_projected_scatter():
+    # Edge-on plane: Rayleigh(sigma) tilts at uniform nodes project to a
+    # Normal(0, sigma) line-of-sight offset — std sigma, NOT sigma*sqrt(2)
+    # (the pre-v0.4 +-full-tilt approximation)
+    rng = np.random.default_rng(3)
+    sigma, n = 1.5, 40000
+    mut = rng.rayleigh(sigma, n)
+    node = rng.uniform(0.0, 2.0 * math.pi, n)
+    off = np.array([tilted_inclination_deg(90.0, m, o)
+                    for m, o in zip(mut, node)]) - 90.0
+    assert abs(float(np.mean(off))) < 0.02
+    assert float(np.std(off)) == pytest.approx(sigma, rel=0.03)
+
+
+def test_system_inclinations_cluster_about_plane():
+    # Planets stay within ~10 Rayleigh sigmas of their system plane and in
+    # the physical [0, 180] range (i > 90 = mirrored chord, never clipped)
+    for seed in range(300):
+        sys_ = generate_system(seed, f"I-{seed}")
+        for p in sys_.planets:
+            assert 0.0 <= p.inc_deg <= 180.0
+            assert abs(p.inc_deg - sys_.sys_inc_deg) < 15.0

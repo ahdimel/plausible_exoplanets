@@ -9,8 +9,15 @@ Stability rules applied to adjacent planet pairs:
              survival typically requires Delta >~ 9-12.
 
 Geometry: a single system plane orientation is drawn isotropically
-(cos i uniform), and each planet receives a small mutual inclination
-(Rayleigh, sigma=1.5 deg, Fabrycky+ 2014) about that plane.
+(cos i uniform), and each planet's orbit normal is tilted away from the
+system-plane normal by a mutual inclination (Rayleigh, sigma=1.5 deg,
+Fabrycky+ 2014) at a uniformly random nodal azimuth. The azimuth matters:
+only the component of the tilt along the line of sight changes the impact
+parameter, so a Rayleigh(sigma) tilt with random node projects to a
+Normal(0, sigma) inclination offset. (Applying the full tilt with a random
+sign, as this module did pre-v0.4, inflates the projected scatter by
+sqrt(2) and distorts transit multiplicity — the observable this project
+studies.)
 """
 
 from __future__ import annotations
@@ -46,6 +53,20 @@ class StellarSystem:
 
     def add_flag(self, severity: Severity, rule: str, message: str) -> None:
         self.flags.append(Flag(severity, rule, message))
+
+
+def tilted_inclination_deg(sys_inc_deg: float, mut_deg: float,
+                           node_rad: float) -> float:
+    """Line-of-sight inclination of an orbit tilted mut_deg from the system
+    plane at nodal azimuth node_rad about the plane normal (spherical law of
+    cosines between orbit normal and line of sight). Result lies in
+    [0, 180]; i > 90 is the mirror-equivalent transit chord, and clipping it
+    to 90 would create an artificial b = 0 pileup."""
+    i_s = math.radians(sys_inc_deg)
+    mu = math.radians(mut_deg)
+    cos_ip = (math.cos(i_s) * math.cos(mu)
+              + math.sin(i_s) * math.sin(mu) * math.cos(node_rad))
+    return math.degrees(math.acos(max(-1.0, min(1.0, cos_ip))))
 
 
 def mutual_hill_delta(star: Star, p_in: Planet, p_out: Planet) -> float:
@@ -124,10 +145,8 @@ def generate_system(seed: int, name: str, max_planet_tries: int = 40,
     sys_inc = math.degrees(math.acos(rng.uniform(0.0, 1.0)))
     for p in planets:
         mut = rng.rayleigh(1.5)
-        sign = 1.0 if rng.random() < 0.5 else -1.0
-        # i > 90 deg is geometrically equivalent (mirrored transit chord);
-        # clipping at 90 would create an artificial pileup at b = 0
-        p.inc_deg = float(np.clip(sys_inc + sign * mut, 0.0, 180.0))
+        node = rng.uniform(0.0, 2.0 * math.pi)
+        p.inc_deg = tilted_inclination_deg(sys_inc, mut, node)
 
     # Astrophysical noise state and atmospheres are drawn here (not in the
     # orchestrator) so a system is bit-for-bit reproducible from (seed, name)
