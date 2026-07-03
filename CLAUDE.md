@@ -131,10 +131,19 @@ mid-sequence, it breaks reproducibility of every stored world) →
   vs 3.7% null. KS p-values collapse at n~25k: watch D, not p.
 - Validation at 1M: audit residuals unchanged (3.8% deuterium, 2.7% iron);
   Kepler-detectable radius median 0.313 dex (n=25,092); log-period D=0.074.
-- Project paper `docs/paper.html` updated to v0.3 (new §4.4 IWA trade +
-  fig4, §4.5 architecture table); numbers are HARDCODED snapshots — see
-  SKILLS.md for the re-derivation recipe. Verified light+dark via headless
-  Chrome.
+- Project paper `docs/paper.html` updated to v0.3 (IWA trade + fig4,
+  architecture table); numbers are HARDCODED snapshots — see SKILLS.md for
+  the re-derivation recipe. Verified light+dark via headless Chrome.
+- Paper restructured for scientific review (2026-07-02, later session):
+  new §3 "The generative model" (full methods: IMF/scalings, distance CDF
+  equation, occurrence/M-R/eccentricity parameters, INVALID-rule table,
+  noise model, shoreline equation, albedo table, transit accuracy,
+  instrument-noise-model table, determinism/tests), validation now §4
+  (adds selection-matched KS table incl. the honest radius-D=0.21 row),
+  findings §5, NEW §6 Limitations, future §7, refs §8 = ~40-entry
+  alphabetical bibliography with author-year inline citations (no more
+  numbered superscripts). Section cross-refs all renumbered — grep for
+  "§5.4"-style refs before renumbering again.
 - Known model deficiency (still present): the INTRINSIC radius distribution
   has no dip at 1.7-2.0 Re — Fulton valley smeared flat in
   `planets.py::sample_small_radius`. Top candidate physics fix. Related new

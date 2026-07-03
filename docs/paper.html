@@ -179,13 +179,18 @@
   table.data td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
   table.data td:first-child { color: var(--ink); }
 
+  /* ---------------- equations ---------------- */
+  .eq { margin: 18px auto; max-width: 66ch; text-align: center;
+        font-size: 16.5px; color: var(--ink); line-height: 1.7; }
+  .eq .qual { display: block; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 12.5px; color: var(--ink-3); margin-top: 5px; }
+
   /* ---------------- references ---------------- */
-  ol.refs { padding-left: 26px; display: grid; gap: 10px; font-size: 15px; color: var(--ink-2); }
-  ol.refs li::marker { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  ul.refs { list-style: none; padding-left: 0; display: grid; gap: 9px;
+    font-size: 14.5px; color: var(--ink-2); }
+  ul.refs li { padding-left: 1.6em; text-indent: -1.6em; }
   .refnote { font-size: 13px; color: var(--ink-3); margin-top: 18px;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  sup.r { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 11px; }
-  sup.r a { text-decoration: none; }
   footer.end {
     margin-top: 70px; padding-top: 18px; border-top: 1px solid var(--hairline);
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -232,6 +237,8 @@
       below its Astro2020 goal of 25 — and its exo-Earth yield turns out to be limited almost
       entirely by inner working angle, not by contrast floor or host brightness: halving the
       60&nbsp;mas working angle quintuples the yield, while a 3&times; deeper floor gains nothing.
+      The full model — every distribution, stability rule, noise term, and detection threshold —
+      is specified in §3, and both populations regenerate bit-for-bit from two integer seeds.
     </p>
   </div>
 
@@ -316,12 +323,393 @@
 
   <!-- ================================================================ -->
   <section class="col">
-    <h2 class="sec"><span class="n">3</span>Validation against the real catalog</h2>
+    <h2 class="sec"><span class="n">3</span>The generative model</h2>
+    <p>
+      This section specifies the model at the level a collaborator would need to audit it: every
+      distribution, threshold, and instrument assumption behind the numbers in §4–§5. The
+      generator is ~2,900 lines of core Python (NumPy for the physics, SQLite for persistence),
+      organized as a pipeline — star → planets → dynamical stability → geometry → stellar noise →
+      atmospheres → observatories — in which each stage consumes draws from a single per-system
+      random stream (§3.8). No parameter below was tuned to produce the findings; each traces
+      either to the cited literature or to a named calibration choice, and the flag framework
+      (§3.3) records where the model stands on thin ice. Generation runs at ~2,000 fully
+      validated systems per second on a laptop, so the million-system population regenerates in
+      about nine minutes.
+    </p>
+
+    <h3 class="sub">3.1 &ensp;Stars and the local density normalization</h3>
+    <p>
+      Host masses follow the Kroupa (2001) broken power-law initial mass function,
+      d<i>N</i>/d<i>M</i> ∝ <i>M</i><sup>−1.3</sup> below 0.5&nbsp;M<sub>☉</sub> and
+      <i>M</i><sup>−2.3</sup> above it, sampled by analytic inverse-CDF over 0.08–2.2&nbsp;M<sub>☉</sub>.
+      The truncation is a deliberate scope choice — transit surveys overwhelmingly target FGKM
+      dwarfs, and more massive stars are rare, short-lived, and poor transit hosts — recorded as
+      an INFO flag on every star. Luminosity and radius come from piecewise main-sequence scaling
+      relations, <i>L</i>/L<sub>☉</sub>&nbsp;=&nbsp;0.23&nbsp;<i>M</i><sup>2.3</sup>
+      (<i>M</i>&nbsp;&lt;&nbsp;0.43), <i>M</i><sup>4.0</sup> (0.43&nbsp;≤&nbsp;<i>M</i>&nbsp;&lt;&nbsp;2.0),
+      1.4&nbsp;<i>M</i><sup>3.5</sup> above, and <i>R</i>/R<sub>☉</sub>&nbsp;=&nbsp;<i>M</i><sup>0.9</sup>
+      below 1&nbsp;M<sub>☉</sub>, <i>M</i><sup>0.6</sup> above — each with lognormal scatter (10%
+      in <i>L</i>, 5% in <i>R</i>) standing in for age and metallicity spread. Effective
+      temperature follows from the Stefan–Boltzmann law; main-sequence lifetime is
+      <i>t</i><sub>MS</sub>&nbsp;≈&nbsp;10&nbsp;(<i>M</i>/<i>L</i>)&nbsp;Gyr, with age drawn
+      uniformly on [0.5, min(12, <i>t</i><sub>MS</sub>)]&nbsp;Gyr and stars in the last 10% of
+      their lifetime flagged QUESTIONABLE (turnoff radius inflation is not modeled). Metallicity
+      is the local thin-disk distribution, [Fe/H]&nbsp;~&nbsp;N(−0.1, 0.2) clipped to
+      [−1.0, +0.5] (Hayden et al. 2015).
+    </p>
+    <p>
+      Observables are derived, not drawn: bolometric magnitude from <i>L</i>; V-band bolometric
+      corrections from the Flower (1996) polynomials with the Torres (2010) coefficient
+      corrections (Sun: BC<sub>V</sub>&nbsp;≈&nbsp;−0.07, test-enforced); TESS-band and J
+      magnitudes via V−I<sub>c</sub> and V−J colors interpolated on the Pecaut &amp; Mamajek
+      (2013) dwarf sequence (±0.1&nbsp;mag class accuracy, INFO-flagged); and quadratic
+      limb-darkening coefficients (<i>u</i><sub>1</sub>, <i>u</i><sub>2</sub>) as a coarse fit in
+      T<sub>eff</sub> to the Claret &amp; Bloemen (2011) Kepler-band tabulations.
+    </p>
+    <p>
+      Distances are where the synthetic universe is pinned to the real one. Systems are placed
+      with uniform density in the Galactic plane and an exponential vertical falloff
+      exp(−|<i>z</i>|/<i>h</i>) with scale height <i>h</i>&nbsp;=&nbsp;300&nbsp;pc, observer at
+      the midplane. Averaging that profile over spheres gives a closed-form cumulative count,
+    </p>
+    <div class="eq">
+      <i>N</i>(&lt;<i>d</i>) &nbsp;=&nbsp; 4π <i>n</i><sub>0</sub> <i>h</i>
+      [ <i>d</i><sup>2</sup>/2 − <i>h</i><sup>2</sup>(1 − (1 + <i>d</i>/<i>h</i>)
+      e<sup>−<i>d</i>/<i>h</i></sup>) ],
+      <span class="qual">which recovers the uniform-density <i>d</i><sup>3</sup>/3 as
+      <i>h</i>&nbsp;→&nbsp;∞; at 300 pc the sphere-averaged density is ~71% of midplane.</span>
+    </div>
+    <p>
+      The absolute normalization <i>n</i><sub>0</sub>&nbsp;=&nbsp;0.065 main-sequence
+      <em>systems</em> per pc³ is anchored on the RECONS 10&nbsp;pc census (Henry et al. 2018)
+      and the Gaia Catalogue of Nearby Stars (Gaia Collaboration 2021), and is uncertain at the
+      ±20% level. It implies ≈5.20 million systems within 300&nbsp;pc and 7,083 within
+      30&nbsp;pc — the numbers that make the two populations of §2.1 a 19% sample and a 1:1
+      analog of reality, respectively. Each star consumes exactly one uniform draw for distance,
+      inverted through this CDF by bisection; capping the volume at a different
+      <i>d</i><sub>max</sub> therefore reshapes only the distance (and apparent magnitudes),
+      never the rest of the random stream.
+    </p>
+
+    <h3 class="sub">3.2 &ensp;Planetary systems: occurrence, masses, orbits</h3>
+    <p>
+      Each star targets a truncated-Poisson number of planets (mean 2.2, maximum 7; cf.
+      Zhu et al. 2018), with candidate periods drawn by accept–reject so that occurrence rises
+      as d<i>N</i>/dln<i>P</i>&nbsp;∝&nbsp;<i>P</i><sup>1.5</sup> inside 10&nbsp;days and is flat
+      per log-interval from 10 to 640&nbsp;days (Petigura et al. 2013); candidates closer than a
+      period ratio of 1.2 to an existing planet are rediscarded before any physics is drawn.
+    </p>
+    <p>
+      Small-planet radii are a bimodal lognormal mixture — 45% super-Earths centered at
+      1.3&nbsp;R<sub>⊕</sub> (σ<sub>ln</sub>&nbsp;=&nbsp;0.20) and 55% sub-Neptunes at
+      2.4&nbsp;R<sub>⊕</sub> (σ<sub>ln</sub>&nbsp;=&nbsp;0.25) — producing the photoevaporation
+      valley near 1.9&nbsp;R<sub>⊕</sub> (Fulton et al. 2017), with the whole branch sliding as
+      (<i>P</i>/10&nbsp;d)<sup>−0.05</sup> so the valley moves to smaller radii at longer
+      periods, in the spirit of the measured slope (Van Eylen et al. 2018). A planet is instead
+      drawn on the giant branch with probability
+      <i>p</i>&nbsp;=&nbsp;0.10&nbsp;·&nbsp;10<sup>1.2[Fe/H]</sup>&nbsp;·&nbsp;min(<i>M</i><sub>★</sub>/M<sub>☉</sub>, 1.5),
+      clipped to [0.005, 0.30] — the Fischer &amp; Valenti (2005) metallicity correlation with a
+      stellar-mass factor. Giant radii sit on a lognormal plateau near 1&nbsp;R<sub>Jup</sub>
+      (σ<sub>ln</sub>&nbsp;=&nbsp;0.12) with an empirical irradiation-inflation factor of up to
+      ~1.6 switched on above T<sub>eq</sub>&nbsp;=&nbsp;1000&nbsp;K.
+    </p>
+    <p>
+      Masses follow probabilistic mass–radius relations in the spirit of Chen &amp; Kipping
+      (2017) and Wolfgang et al. (2016): rocky (<i>R</i>&nbsp;&lt;&nbsp;1.6&nbsp;R<sub>⊕</sub>)
+      <i>M</i>&nbsp;=&nbsp;<i>R</i><sup>3.7</sup> with 25% lognormal scatter; volatile-rich
+      (1.6–8&nbsp;R<sub>⊕</sub>) <i>M</i>&nbsp;=&nbsp;2.7&nbsp;<i>R</i><sup>1.3</sup> with
+      35–40% scatter; giants get masses drawn nearly independently of radius (the degenerate-EOS
+      plateau), lognormal around 0.9&nbsp;M<sub>Jup</sub> and clipped at 15&nbsp;M<sub>Jup</sub>
+      so the deuterium-burning rule of §3.3 can act. Eccentricities distinguish architecture:
+      single planets draw from the Kipping (2013) Beta(0.867, 3.03) distribution, while members
+      of multis draw from a dynamically cold Rayleigh(0.05), matching the observed
+      single–multi eccentricity dichotomy (Xie et al. 2016). Each system takes one isotropic
+      plane orientation (uniform in cos&nbsp;<i>i</i>), and each planet a Rayleigh(1.5°) mutual
+      inclination about it with random sign (Fabrycky et al. 2014). Inclinations are deliberately
+      <em>not</em> reflected into [0°, 90°]: values beyond 90° are geometrically equivalent
+      mirror transits, and clipping them would pile impact parameters up at
+      <i>b</i>&nbsp;=&nbsp;0.
+    </p>
+    <p>
+      Equilibrium temperature assumes albedo 0.3 with full heat redistribution; insolation is
+      <i>L</i>/<i>a</i><sup>2</sup> in Earth units. Habitable-zone membership uses the
+      conservative (runaway-greenhouse to maximum-greenhouse) limits in a simplified
+      Kopparapu et al. (2013) form — effective fluxes 1.11 and 0.36 with mild T<sub>eff</sub>
+      corrections — which places the Sun&rsquo;s conservative zone at 0.95–1.67&nbsp;AU
+      (test-enforced to contain Earth).
+    </p>
+
+    <h3 class="sub">3.3 &ensp;Hard validity rules and the plausibility ladder</h3>
+    <p>
+      Plausibility is enforced by rejection sampling against typed, severity-graded rules.
+      INVALID means the draw violates physics or a robust empirical limit: the generator
+      resamples, and no INVALID object ever reaches the database (asserted by the test suite).
+      QUESTIONABLE means allowed-but-weakly-modeled: the object is kept and the doubt is stored
+      as a queryable flag with a literature citation. INFO records honest scope simplifications.
+      The hard rules:
+    </p>
+    <div class="tablewrap">
+      <table class="data">
+        <caption>INVALID rules — violations are resampled, never persisted</caption>
+        <thead><tr><th>Rule</th><th>Criterion</th><th>Physical basis</th></tr></thead>
+        <tbody>
+          <tr><td>Deuterium burning</td><td class="num">M &gt; 13 M<sub>Jup</sub></td>
+            <td>Above this the object is a brown dwarf, not a planet.</td></tr>
+          <tr><td>Denser than iron</td><td class="num">R &lt; 0.78 M<sup> 0.27</sup> (Earth units)</td>
+            <td>Pure-iron mass–radius curve (Zeng et al. 2016); no formation channel exceeds it.</td></tr>
+          <tr><td>Super-puff floor</td><td class="num">ρ &lt; 0.03 g cm⁻³</td>
+            <td>Below even the most extreme confirmed super-puffs.</td></tr>
+          <tr><td>Roche limit</td><td class="num">a(1−e) &lt; 2.44 R<sub>★</sub>(ρ<sub>★</sub>/ρ<sub>p</sub>)<sup>1/3</sup></td>
+            <td>Fluid Roche limit — the planet would be tidally shredded.</td></tr>
+          <tr><td>Grazes star</td><td class="num">a(1−e) &lt; 1.5 R<sub>★</sub></td>
+            <td>Periastron inside 1.5 stellar radii.</td></tr>
+          <tr><td>Orbit crossing</td><td class="num">a<sub>out</sub>(1−e<sub>out</sub>) ≤ a<sub>in</sub>(1+e<sub>in</sub>)</td>
+            <td>Adjacent radial excursions overlap.</td></tr>
+          <tr><td>Hill instability</td><td class="num">Δ &lt; 2√3 mutual Hill radii</td>
+            <td>Gladman (1993) analytic two-planet instability criterion.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      The Hill separation uses
+      Δ&nbsp;=&nbsp;(<i>a</i><sub>out</sub>&nbsp;−&nbsp;<i>a</i><sub>in</sub>)/<i>R</i><sub>H</sub> with
+      <i>R</i><sub>H</sub>&nbsp;=&nbsp;[(<i>m</i><sub>in</sub>+<i>m</i><sub>out</sub>)/3<i>M</i><sub>★</sub>]<sup>1/3</sup>
+      (<i>a</i><sub>in</sub>+<i>a</i><sub>out</sub>)/2. Pairs with
+      Δ&nbsp;∈&nbsp;[2√3, 9) survive but are flagged QUESTIONABLE, since Gyr survival of packed
+      multis typically requires Δ&nbsp;≳&nbsp;9–12 (Pu &amp; Wu 2015). Other QUESTIONABLE
+      regimes — kept because &ldquo;plausible but uncertain&rdquo; is product, not error —
+      include super-puff densities (0.03–0.1&nbsp;g&nbsp;cm⁻³, cf. Kepler-51), inflated giants
+      without strong irradiation, hot-Neptune-desert occupants
+      (<i>P</i>&nbsp;&lt;&nbsp;1&nbsp;d, <i>R</i>&nbsp;&gt;&nbsp;2&nbsp;R<sub>⊕</sub>;
+      Mazeh et al. 2016), giants around late M dwarfs (the GJ&nbsp;3512&nbsp;b regime),
+      rocky planets above 10&nbsp;M<sub>⊕</sub> (mega-Earths), ultra-hot atmospheres
+      (T<sub>eq</sub>&nbsp;&gt;&nbsp;2500&nbsp;K), near-turnoff hosts, and metal-poor hosts.
+      Every flag is a row in a queryable table keyed by a dotted rule id, so &ldquo;show me all
+      super-puffs&rdquo; is a one-line SQL query.
+    </p>
+
+    <h3 class="sub">3.4 &ensp;Stellar photometric noise</h3>
+    <p>
+      Every star carries an astrophysical noise state, because detectability against a quiet
+      photon budget is the wrong question for most real stars. Four components are modeled, each
+      reduced to its effective white-noise contribution on a transit-depth measurement of
+      duration T<sub>14</sub>: <b>granulation</b>, anchored at the solar ~40&nbsp;ppm per hour
+      and scaled as (ν<sub>max,☉</sub>/ν<sub>max</sub>)<sup>0.6</sup> with
+      ν<sub>max</sub>&nbsp;∝&nbsp;<i>g</i>/√T<sub>eff</sub> (Kallinger et al. 2014), averaging
+      down slowly (∝&nbsp;T<sub>14</sub><sup>−0.35</sup>) because it is correlated;
+      <b>p-mode oscillations</b> at 3&nbsp;ppm&nbsp;(<i>L</i>/<i>M</i>)<sup>0.9</sup>
+      (Kjeldsen &amp; Bedding 1995), incoherent over hours and averaging as white noise;
+      <b>rotational spot variability</b>, with rotation from gyrochronology
+      (<i>P</i><sub>rot</sub>&nbsp;=&nbsp;24.5&nbsp;d&nbsp;·&nbsp;√(age/4.57&nbsp;Gyr)&nbsp;·&nbsp;<i>M</i><sup>−0.6</sup>),
+      an activity index declining as exp(−age/τ) where τ&nbsp;=&nbsp;1, 2.5, and 5&nbsp;Gyr for
+      earlier-than-K, early-M, and fully convective stars respectively (M dwarfs stay active
+      longer), and variability semi-amplitudes spanning the quiet-Sun ~300&nbsp;ppm to the
+      ~20,000&nbsp;ppm of young active stars (McQuillan et al. 2014) — of which the residual
+      trend over one transit window plus a 5% spot-crossing term contaminate the depth; and
+      <b>flares</b>, an extra stochastic term for active stars below 0.5&nbsp;M<sub>☉</sub>.
+    </p>
+    <p>
+      Spots and flares are contrast effects and weaken toward the red: each observatory band
+      applies a chromatic factor of 1.0 (blue optical / Kepler), 0.75 (TESS), or 0.40
+      (JWST/Roman near-IR), following Rackham et al. (2018). The total noise on any transit
+      measurement is then σ<sub>tot</sub>² = σ<sub>instr</sub>²/T<sub>14</sub> + σ<sub>★</sub>²
+      — stellar noise enters every observatory&rsquo;s budget in quadrature, and it is why
+      bright-but-active hosts can be worse targets than fainter quiet ones. The coefficients are
+      population-level Kepler calibrations: adequate for demographics, not for fitting any
+      individual star (an explicit limitation, §6).
+    </p>
+
+    <h3 class="sub">3.5 &ensp;Atmospheres and per-planet albedos</h3>
+    <p>
+      Atmosphere class follows bulk properties plus an escape criterion. Giants and Neptunians
+      keep primary H/He envelopes (μ&nbsp;=&nbsp;2.3); sub-Neptunes split by bulk density into
+      H/He-rich (ρ&nbsp;&lt;&nbsp;2&nbsp;g&nbsp;cm⁻³, μ&nbsp;=&nbsp;3.5) and steam worlds
+      (μ&nbsp;=&nbsp;18) — a genuinely degenerate call, flagged as such. Rocky planets face the
+      <em class="term">cosmic shoreline</em> (Zahnle &amp; Catling 2017): an atmosphere survives
+      when the received insolation stays below
+    </p>
+    <div class="eq">
+      <i>I</i><sub>crit</sub> &nbsp;=&nbsp; 10.5&nbsp;(<i>v</i><sub>esc</sub>/<i>v</i><sub>esc,⊕</sub>)<sup>4</sup>
+      <span class="qual">in Earth insolation units — normalized through Mars, the solar-system
+      body that sits on the empirical line. Normalizing through Earth instead would put Earth
+      itself on the knife&rsquo;s edge; with the Mars anchor, Earth retains its atmosphere with
+      an order-of-magnitude margin while the Moon and Mercury strip.</span>
+    </div>
+    <p>
+      Retained rocky atmospheres are secondary CO₂/N₂ (μ&nbsp;=&nbsp;33); stripped ones are
+      airless. Rocky planets around M dwarfs are flagged QUESTIONABLE either way — whether they
+      hold atmospheres at all is exactly what JWST is currently testing on TRAPPIST-1.
+      Transmission signals use the scale height <i>H</i>&nbsp;=&nbsp;<i>k</i>T<sub>eq</sub>/(μ<i>m</i><sub>H</sub><i>g</i>):
+      one scale height subtends δ<sub>1H</sub>&nbsp;=&nbsp;2<i>H</i>R<sub>p</sub>/R<sub>★</sub>²,
+      a feature spans two scale heights, and a cloud/haze suppression factor drawn uniformly on
+      [0.15, 1.0] is applied — clouds being the dominant, and genuinely unpredictable,
+      uncertainty. TSM and ESM follow Kempton et al. (2018, eqs. 1 and 4) with the published
+      per-radius-bin scale factors. JWST feature detectability converts each instrument&rsquo;s
+      white-light precision into an effective per-feature noise via a √5 penalty (features are
+      fit across the full band, not read off one spectral bin; the value is calibrated so
+      K2-18&nbsp;b-class targets need ~2–3 transits, matching published results), adds a
+      stellar-contamination floor proportional to the host&rsquo;s variability amplitude (the
+      transit-light-source effect of Rackham et al. 2018), and reports transits-to-5σ, with
+      &gt;25 scored impractical.
+    </p>
+    <p>
+      For reflected-light imaging, every planet draws a V-band geometric albedo from class- and
+      temperature-dependent distributions spanning the <em>measured</em> range — a factor of ~20,
+      where the classic yield-study convention is a flat 0.2:
+    </p>
+    <div class="tablewrap">
+      <table class="data">
+        <caption>Per-planet geometric-albedo distributions (V band)</caption>
+        <thead><tr><th>Class</th><th>Distribution</th><th>Anchors</th></tr></thead>
+        <tbody>
+          <tr><td>H/He envelopes</td>
+            <td>T<sub>eq</sub>-interpolated mean (0.47→0.52→0.65→0.30→0.12→0.06→0.10→0.30 at
+              50/110/250/400/700/1000/1500/2200 K), lognormal ×1.4 scatter, clip [0.02, 0.85]</td>
+            <td>Sudarsky et al. (2000) cloud sequence bracketed by measurement: Jupiter 0.52,
+              Saturn 0.47; hot Jupiters are dark (Kepler/CHEOPS population 0.03–0.11,
+              TrES-2b &lt; 0.04); ultra-hot silicate clouds recover ~0.3 (Kepler-7b 0.35).</td></tr>
+          <tr><td>H/He-rich</td><td>as above ×0.9</td>
+            <td>Metal-enriched envelopes run slightly darker.</td></tr>
+          <tr><td>Steam</td><td>0.30 lognormal (σ<sub>ln</sub> 0.30), clip [0.08, 0.60]</td>
+            <td>No measurements exist; water clouds plausibly bright, hazes dark.</td></tr>
+          <tr><td>Secondary CO₂/N₂</td><td>78%: N(0.24, 0.08); 22%: Venus branch N(0.65, 0.07)</td>
+            <td>Earth&rsquo;s measured 0.24; a Venus-like global cloud deck nearly triples the
+              reflected signal (Venus ≈ 0.7).</td></tr>
+          <tr><td>Airless</td><td>N(0.12, 0.05); below 200 K, 15% icy branch N(0.55, 0.15)</td>
+            <td>Regolith: Moon 0.07, Mercury 0.14, Mars 0.17; ice: Europa 0.67, Enceladus &gt; 1.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      The draw consumes exactly two random deviates for every class (a branch selector and a
+      scatter deviate), preserving the stream layout that determinism requires. Albedos are
+      stored per planet and used directly by the HWO model of §3.7; §5.4 quantifies how much they
+      matter.
+    </p>
+
+    <h3 class="sub">3.6 &ensp;Transit geometry and light curves</h3>
+    <p>
+      Geometry follows Winn (2010) throughout, including full eccentricity corrections: the
+      impact parameter is
+      <i>b</i>&nbsp;=&nbsp;(<i>a</i>/R<sub>★</sub>)&nbsp;cos&nbsp;<i>i</i>&nbsp;·&nbsp;(1−e²)/(1+e&nbsp;sin&nbsp;ω),
+      a planet transits when |<i>b</i>|&nbsp;&lt;&nbsp;1+<i>k</i> (with
+      <i>k</i>&nbsp;=&nbsp;R<sub>p</sub>/R<sub>★</sub>), the a-priori transit probability
+      carries the same eccentricity factor, and the T<sub>14</sub>/T<sub>23</sub> durations use
+      Winn&rsquo;s eqs. 14–16. The light-curve model integrates the quadratic limb-darkening law
+      <i>I</i>(μ)&nbsp;=&nbsp;1&nbsp;−&nbsp;<i>u</i><sub>1</sub>(1−μ)&nbsp;−&nbsp;<i>u</i><sub>2</sub>(1−μ)²
+      over annuli spanning <em>only</em> the radial band [<i>z</i>−<i>k</i>, <i>z</i>+<i>k</i>]
+      the planet actually covers, so fractional accuracy is independent of planet size — a fixed
+      whole-disk grid, the obvious implementation, was measured to err by ~20% for Earth-size
+      planets and rejected. Against the analytic uniform-source depth the integrator is exact to
+      ~10<sup>−13</sup> at mid-transit and better than 10<sup>−4</sup> along the chord, and the
+      limb-darkened depth is internally converged at the sub-ppm level — equivalent to the
+      Mandel &amp; Agol (2002) model, with no external dependencies.
+    </p>
+
+    <h3 class="sub">3.7 &ensp;Observatory models and detection rules</h3>
+    <p>
+      Every transiting planet is scored against six transit instruments, and every planet —
+      transiting or not — against HWO imaging. Transit noise budgets combine the instrument
+      precision scaled to the transit duration with the star&rsquo;s astrophysical noise in the
+      appropriate band (§3.4); folded surveys multiply the per-transit SNR by √N<sub>transits</sub>
+      over the mission baseline and duty cycle.
+    </p>
+    <div class="tablewrap">
+      <table class="data">
+        <caption>Instrument models — 1-hour precision σ(m) in ppm, and detection rules</caption>
+        <thead><tr><th>Instrument</th><th>1-hr precision model</th><th>Detection rule</th></tr></thead>
+        <tbody>
+          <tr><td>TESS (1 sector)</td>
+            <td class="num">10<sup>0.267 T + 0.04</sup> ⊕ 60 floor</td>
+            <td>SNR ≥ 7.1, ≥ 2 transits in 27.4 d; saturates T &lt; 4. Fit to Stassun et al. (2018): ~150 ppm at T = 8, ~6,000 at T = 14.</td></tr>
+          <tr><td>Kepler (4 yr, archival)</td>
+            <td class="num">30·10<sup>0.2(Kp−12)</sup>·√6.5 ⊕ 20 floor</td>
+            <td>SNR ≥ 7.1, ≥ 3 transits; 92% duty over 4 yr; Kp ≈ V; saturates Kp &lt; 6. Photon-scaled from the 6.5-h CDPP of 30 ppm at Kp = 12.</td></tr>
+          <tr><td>JWST NIRISS SOSS</td>
+            <td class="num">20·10<sup>0.2(J−8)</sup> ⊕ 10 floor</td>
+            <td>Single targeted transit, SNR ≥ 5; saturates J &lt; 6.5. Anchored to ERS program performance.</td></tr>
+          <tr><td>JWST NIRSpec Prism</td>
+            <td class="num">12·10<sup>0.2(J−11)</sup> ⊕ 10 floor</td>
+            <td>Single targeted transit, SNR ≥ 5; saturates J &lt; 10.5.</td></tr>
+          <tr><td>Ground 1-m survey</td>
+            <td class="num">2000 ⊕ 1000 correlated floor</td>
+            <td>SNR ≥ 7, ≥ 3 transits, depth &gt; 1 mmag; 90 nights at 33% duty.</td></tr>
+          <tr><td>Roman GBTDS (2027+)</td>
+            <td class="num">700·10<sup>0.2(F146−16)</sup> ⊕ 200 floor</td>
+            <td>SNR ≥ 7.1, ≥ 3 transits; 6 seasons × 72 d; usable 8 &lt; F146 &lt; 21 (F146 ≈ J proxy). Calibrated to reproduce the Wilson et al. (2023) yield regime.</td></tr>
+          <tr><td>HWO imaging (2040s)</td>
+            <td class="num">contrast floor 3×10⁻¹¹ · 10<sup>0.2 max(V−7, 0)</sup></td>
+            <td>Host V &lt; 11 and d &lt; 30 pc; quadrature separation within [60, 500] mas; reflected contrast above the floor.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      (⊕ denotes addition in quadrature.) The HWO model computes each planet&rsquo;s reflected
+      contrast at quadrature from its own stored albedo,
+    </p>
+    <div class="eq">
+      <i>C</i> &nbsp;=&nbsp; <i>A</i><sub>g</sub>&nbsp;Φ(90°)&nbsp;(R<sub>p</sub>/<i>a</i>)²,
+      &emsp; Φ(90°) = 1/π (Lambertian),
+      <span class="qual">with angular separation <i>a</i>/<i>d</i>; the contrast floor is
+      systematics-limited at 3×10⁻¹¹ on bright hosts and degrades photon-limited beyond
+      V ≈ 7.</span>
+    </div>
+    <p>
+      Two honesty clauses attach to the future instruments. Roman&rsquo;s survey points at
+      ~2&nbsp;deg² of Galactic bulge while our systems are local, so every Roman row answers the
+      counterfactual &ldquo;if this system sat in a Roman field&rdquo; — flagged in the
+      observation note. And the HWO detection rule has <em>no integration-time budget</em>: a
+      planet outside the working angles or below the floor is undetectable at any exposure, but
+      a planet above both is scored detected regardless of how long that detection would take.
+      That asymmetry is why §5.4 finds yields geometry-limited — and why those results speak to
+      detectability, not survey scheduling. Both models are requirement-era and expected to
+      drift; the project maintains dated, sourced assumption logs per instrument
+      (<span class="k-inline">docs/OBSERVATORIES.md</span>).
+    </p>
+
+    <h3 class="sub">3.8 &ensp;Determinism, reproducibility, and tests</h3>
+    <p>
+      One system is one seed: all draws — star, planets, stability retries, inclinations, noise
+      state, atmospheres, albedos — come in fixed order from a single
+      <span class="k-inline">numpy</span> PCG64 stream, so a stored world regenerates
+      bit-for-bit from its (seed, name) pair. Light curves are therefore never stored; the CLI
+      and the web interface re-simulate them on demand and are guaranteed the identical world.
+      Population seeds come from a <span class="k-inline">SeedSequence</span> stream, which makes
+      any N-system population an exact prefix of every larger run: the million-system population
+      is bit-for-bit the first million systems of the eventual full-reality run
+      (<i>N</i>&nbsp;=&nbsp;5,199,422). The distance cap consumes exactly one draw and the albedo
+      exactly two per planet, preserving stream alignment across model variants.
+    </p>
+    <p>
+      The test suite pins the physics to known values rather than to itself: the Sun&rsquo;s
+      bolometric correction (−0.07), Earth&rsquo;s transit depth and duration across the Sun
+      (84&nbsp;ppm, ~13&nbsp;h) and its geometric transit probability (&lt;1%), Jupiter&rsquo;s
+      ~1% depth, the conservative habitable zone containing Earth, Venus–Earth dynamical
+      separation (Δ&nbsp;&gt;&nbsp;25 mutual Hill radii), GJ&nbsp;1214&nbsp;b-class TSM values,
+      and an Earth twin&rsquo;s HWO contrast at 10&nbsp;pc. A pipeline test asserts the INVALID
+      invariant end-to-end: no hard-rule violator is ever persisted.
+    </p>
+  </section>
+
+  <!-- ================================================================ -->
+  <section class="col">
+    <h2 class="sec"><span class="n">4</span>Validation against the real catalog</h2>
     <p>
       Before trusting conclusions from synthetic worlds, the generator is audited against 8,240
-      confirmed planets. The audit runs in both directions: real planets are pushed through
-      exoverse&rsquo;s physical-validity rules, and the synthetic Kepler-detectable population is
+      confirmed planets (snapshot of 2026-07-02; NASA Exoplanet Archive TAP when healthy, The
+      Extrasolar Planets Encyclopaedia as automatic fallback, provenance recorded in the
+      snapshot). The audit runs in both directions: real planets are pushed through
+      exoverse&rsquo;s physical-validity rules, and the synthetic detectable population is
       compared against real transit discoveries.
+    </p>
+    <p>
+      The rule audit asks a falsifiable question: <em class="term">would our INVALID rules
+      reject real planets?</em> A generator whose validity rules exclude confirmed worlds has
+      wrong rules. Catalog data are noisy in specific, known ways, so the audit filters for
+      evidential strength before charging a violation: mass rules consider only transiting
+      planets whose masses are measured at &gt;2σ (M&nbsp;sin&nbsp;i lower limits cannot prove a
+      deuterium-limit violation, and the fallback catalog silently mixes upper limits into its
+      mass column — the provenance filter catches both).
     </p>
     <div class="tablewrap">
       <table class="data">
@@ -342,22 +730,49 @@
     <p>
       No real planet violates a rule for a reason the generator can&rsquo;t account for — the two
       nonzero rows are known catalog artifacts, and their rates are stable from the 10,000-system
-      era through 1,000,000. On the population side, the period distribution of 25,092 synthetic
-      Kepler-detectable planets tracks real discoveries closely (median log-period 0.98 vs 0.90,
-      KS&nbsp;D&nbsp;=&nbsp;0.07), while the host-temperature comparison fails by construction
-      (D&nbsp;=&nbsp;0.58) — real surveys target Sun-like stars, whereas exoverse samples the true,
-      M-dwarf-dominated mass function. That deliberate failure is the point: it demonstrates the
-      selection function is being modeled rather than inherited. One statistical note at this
-      scale: with 25,000 detections, KS <em>p</em>-values collapse to zero for even trivial
-      differences, so the D statistic — not <em>p</em> — is the meaningful health metric.
+      era through 1,000,000. The deuterium-limit violators are the familiar transiting brown
+      dwarfs (the CoRoT-3&nbsp;b / KELT-1&nbsp;b class) that catalogs file alongside planets and
+      exoverse excludes by definition; the iron-limit violators are planets whose low-SNR masses
+      scatter above the physical bound.
+    </p>
+    <p>
+      The population comparison is deliberately <em class="term">selection-matched</em>: raw
+      synthetic worlds must never be compared against a raw catalog, because the catalog is the
+      output of survey filters the raw population has not passed. Instead, synthetic planets are
+      filtered to those detectable by the modeled Kepler — the deepest long-baseline instrument
+      modeled, hence the best analog of the real transit census — and compared against real
+      transit-discovered planets:
+    </p>
+    <div class="tablewrap">
+      <table class="data">
+        <caption>Selection-matched comparison — 25,092 synthetic Kepler detections vs ~4,800 real transit discoveries</caption>
+        <thead><tr><th>Quantity</th><th>KS D</th><th>Synthetic median</th><th>Real median</th><th>Reading</th></tr></thead>
+        <tbody>
+          <tr><td>log₁₀ period (days)</td><td class="num">0.074</td><td class="num">0.98</td><td class="num">0.90</td>
+            <td>Close agreement: occurrence shaping + geometric and SNR selection reproduce the real detected period distribution.</td></tr>
+          <tr><td>log₁₀ radius (R⊕)</td><td class="num">0.213</td><td class="num">0.313</td><td class="num">0.394</td>
+            <td>Partial agreement. The real detected sample runs larger, with a much heavier giant tail (90th percentile 1.10 vs 0.54 dex) — partly ground-based hot-Jupiter surveys folded into &ldquo;transit-discovered,&rdquo; partly two known model gaps (§6): the intrinsic radius distribution lacks a resolved valley dip, and giant occurrence is not period-structured.</td></tr>
+          <tr><td>host T<sub>eff</sub> (K)</td><td class="num">0.578</td><td class="num">3,598</td><td class="num">5,574</td>
+            <td>Fails by construction: real surveys target FGK stars; exoverse samples the true, M-dwarf-dominated mass function. This row exists to prove the selection is modeled, not inherited.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      One statistical note at this scale: with 25,000 detections, KS <em>p</em>-values collapse
+      to zero for even trivial differences, so the D statistic — not <em>p</em> — is the
+      meaningful health metric. The regression watchlist is specific: a period-D drift means the
+      occurrence shaping broke; a synthetic radius median drifting off ~0.31&nbsp;dex means the
+      radius valley or mass–radius relations broke. A third validation axis — system-level
+      architecture, where disagreement is the <em>point</em> — is deferred to §5.5, where the
+      synthetic population serves as an explicit null model.
     </p>
   </section>
 
   <!-- ================================================================ -->
   <section class="col">
-    <h2 class="sec"><span class="n">4</span>Findings</h2>
+    <h2 class="sec"><span class="n">5</span>Findings</h2>
 
-    <h3 class="sub">4.1 &ensp;Scale makes rare regimes measurable</h3>
+    <h3 class="sub">5.1 &ensp;Scale makes rare regimes measurable</h3>
     <p>
       At a million systems, regimes that were statistical noise at 10,000 are now populations in
       their own right: 6,787 ultra-short-period planets, 390 mega-Earths, 188 ultra-hot worlds, and
@@ -381,7 +796,7 @@
     Long-baseline space photometry (Roman, Kepler) and targeted JWST spectroscopy recover tens of
     thousands; a single TESS sector recovers 852. The Habitable Worlds Observatory recovers 27 — not
     because the model is broken, but because a 300&nbsp;pc survey volume contains almost no stars
-    within its ~30&nbsp;pc imaging reach. That mismatch is what the 1:1 neighborhood population of §4.3 fixes.</figcaption>
+    within its ~30&nbsp;pc imaging reach. That mismatch is what the 1:1 neighborhood population of §5.3 fixes.</figcaption>
 
   <figure class="viz" id="fig2">
     <div class="t">The habitable-zone blind spot</div>
@@ -397,7 +812,7 @@
     99% of the most interesting worlds are geometrically invisible to the method that built our catalogs.</figcaption>
 
   <section class="col">
-    <h3 class="sub">4.2 &ensp;Transit surveys are blind to 99% of habitable-zone rocky worlds</h3>
+    <h3 class="sub">5.2 &ensp;Transit surveys are blind to 99% of habitable-zone rocky worlds</h3>
     <p>
       Figure 2 states the project&rsquo;s central result at population scale. The transit
       method&rsquo;s geometric filter removes 99.0% of habitable-zone rocky planets before noise or
@@ -410,11 +825,11 @@
       rocky planets exist, of which transit geometry offers up fewer than 9,000.
     </p>
 
-    <h3 class="sub">4.3 &ensp;An exo-Earth budget for the Habitable Worlds Observatory</h3>
+    <h3 class="sub">5.3 &ensp;An exo-Earth budget for the Habitable Worlds Observatory</h3>
     <p>
       HWO — NASA&rsquo;s planned flagship for the 2040s — will not use transits at all. It will
       directly image reflected starlight, and its Astro2020 charge is to characterize at least 25
-      potentially habitable exo-Earths<sup class="r"><a href="#r6">[6]</a></sup>. exoverse models it
+      potentially habitable exo-Earths (National Academies 2021). exoverse models it
       with a coronagraphic contrast floor of 3×10<sup>−11</sup> that degrades photon-limited for
       hosts fainter than V≈7, working angles of 60–500&nbsp;mas, and reflected-light contrast
       computed from each planet&rsquo;s <em class="term">own</em> geometric albedo. Where v0.2
@@ -432,7 +847,7 @@
       habitable-zone planets of 0.8–1.4 Earth radii. Because the population is no longer an
       arbitrary sample size, that count needs no scaling: it <em>is</em> the model&rsquo;s yield
       estimate, and it lands just below the mission&rsquo;s ≥25 goal from independent physics,
-      with no tuning toward that number. The shortfall itself is informative, as §4.4 shows: the
+      with no tuning toward that number. The shortfall itself is informative, as §5.4 shows: the
       yield is sitting on the steep part of the inner-working-angle curve.
     </p>
   </section>
@@ -458,7 +873,7 @@
     Earth-size planets within 30&nbsp;pc orbit hosts too faint to image (V ≥ 11 — overwhelmingly M
     dwarfs), and another 19% sit inside the 60&nbsp;mas inner working angle, where an M dwarf&rsquo;s
     close-in habitable zone hides. Right: the survivors orbit K, G, and F stars — independently
-    reproducing the FGK-dominated target lists real HWO planning has converged on<sup class="r"><a href="#r5">[5]</a></sup>.</figcaption>
+    reproducing the FGK-dominated target lists real HWO planning has converged on (Tuchow et al. 2025).</figcaption>
 
   <section class="col">
     <p>
@@ -472,7 +887,7 @@
       selection effect.
     </p>
 
-    <h3 class="sub">4.4 &ensp;The exo-Earth yield is an inner-working-angle problem</h3>
+    <h3 class="sub">5.4 &ensp;The exo-Earth yield is an inner-working-angle problem</h3>
     <p>
       Because every planet&rsquo;s contrast and separation are stored, HWO&rsquo;s three design
       levers — inner working angle, post-processed contrast floor, and host-brightness envelope —
@@ -516,7 +931,7 @@
       the darkest hot giants, which drop out entirely.
     </p>
 
-    <h3 class="sub">4.5 &ensp;What the real sky has that the null universe lacks</h3>
+    <h3 class="sub">5.5 &ensp;What the real sky has that the null universe lacks</h3>
     <p>
       exoverse deliberately omits formation and migration physics: radii are drawn independently
       within a system, spacings are shaped only by stability, and nothing depletes the hot-Neptune
@@ -532,7 +947,7 @@
         <tbody>
           <tr><td>Peas in a pod: median |Δlog R| of adjacent pairs</td>
             <td class="num">0.175</td><td class="num">0.121</td>
-            <td>Real neighbor planets are ~30% more size-uniform than independent draws under identical selection — formation memory (Weiss+ 2018), quantified against an explicit null.</td></tr>
+            <td>Real neighbor planets are ~30% more size-uniform than independent draws under identical selection — formation memory (Weiss et al. 2018), quantified against an explicit null.</td></tr>
           <tr><td>Adjacent pairs just wide of 3:2 resonance</td>
             <td class="num">6.4%</td><td class="num">11.4%</td>
             <td rowspan="2">A ~2× pileup near first-order resonances that smooth, stability-only spacing cannot produce: the fingerprint of migration and resonance capture.</td></tr>
@@ -560,34 +975,79 @@
 
   <!-- ================================================================ -->
   <section class="col">
-    <h2 class="sec"><span class="n">5</span>Future directions</h2>
+    <h2 class="sec"><span class="n">6</span>Limitations and model scope</h2>
+    <p>
+      Every simplification below is deliberate, documented at the object level by an INFO or
+      QUESTIONABLE flag where applicable, and listed here so a reader can judge which
+      conclusions it could touch.
+    </p>
+    <ul>
+      <li><b>Single main-sequence stars only.</b> No binaries (~45% of FGK stars have
+        companions), no evolved hosts. Population counts are counts of single-MS-primary
+        systems; the density normalization is defined consistently (systems, not stars).</li>
+      <li><b>Occurrence distributions are literature-shaped parametric forms</b>, not fits to
+        the Kepler/TESS posterior samples. The known consequence visible in §4: the
+        <em>intrinsic</em> small-planet radius distribution is bimodal but its valley is smeared
+        rather than a resolved dip — the top candidate physics fix. Giant occurrence is
+        metallicity- and mass-scaled but not period-structured (no three-day pileup).</li>
+      <li><b>No formation or migration physics, by design.</b> Radii are independent within a
+        system, spacing is shaped only by stability, and the hot-Neptune desert is flagged, not
+        depleted. This is what makes the §5.5 null model clean — but it means intra-system
+        correlations must not be <em>read off</em> the synthetic population, only measured
+        against it.</li>
+      <li><b>Dynamics is Hill-spacing screening, not N-body integration.</b> No mean-motion
+        resonances, no transit-timing variations; ≥5-planet systems carry a standing
+        QUESTIONABLE flag for exactly this reason.</li>
+      <li><b>Stellar noise coefficients are population-level Kepler calibrations</b> —
+        order-of-magnitude per star, sound in aggregate. Instrument systematics are white-noise
+        floors; red noise and window functions are not modeled, which flatters ground-based and
+        single-sector recoveries slightly.</li>
+      <li><b>Atmosphere classes are probabilistic assignments over genuinely degenerate bulk
+        compositions</b> (each carries its flag), and spectroscopy scoring is a calibrated
+        scale-height heuristic, not radiative transfer. Steam-world albedos are unmeasured
+        guesses spanning a plausible range.</li>
+      <li><b>The density normalization is ±20%</b> (RECONS vs GCNS anchoring), the thin disk is
+        a single exponential (no thick-disk component, ~10% locally; the Sun&rsquo;s ~20&nbsp;pc
+        midplane offset is ignored), and distances are floored at 5&nbsp;pc. Absolute counts —
+        including the 19-exo-Earth yield — inherit that envelope.</li>
+      <li><b>Roman and HWO are requirement-era models and will drift.</b> Roman rows are bulge
+        counterfactuals for local systems; the HWO detection rule has no integration-time
+        budget, no exozodiacal-dust term, and no multi-visit scheduling — its yields are
+        detectability ceilings, not survey simulations. Assumptions and their research dates are
+        logged per instrument in <span class="k-inline">docs/OBSERVATORIES.md</span>.</li>
+    </ul>
+  </section>
+
+  <!-- ================================================================ -->
+  <section class="col">
+    <h2 class="sec"><span class="n">7</span>Future directions</h2>
     <p>
       The findings above are demonstrations of an instrument — a population you can point at
       questions. Below are the directions where that instrument appears most valuable to the wider
       community, based on a survey of current literature.
     </p>
 
-    <h3 class="sub">5.1 &ensp;Yield forecasting for missions now launching</h3>
+    <h3 class="sub">7.1 &ensp;Yield forecasting for missions now launching</h3>
     <p>
       ESA&rsquo;s PLATO launches in late 2026, and yield studies built on population synthesis are
       already shaping its strategy — recent work forward-models ~13,000 expected detections across
-      the Galactic thin disk, thick disk, and halo<sup class="r"><a href="#r1">[1]</a></sup>.
+      the Galactic thin disk, thick disk, and halo (Boettner et al. 2024).
       Roman&rsquo;s bulge survey is predicted to find 60,000–200,000 transiting planets via
-      pixel-level simulation<sup class="r"><a href="#r2">[2]</a></sup>. exoverse&rsquo;s
+      pixel-level simulation (Wilson et al. 2023). exoverse&rsquo;s
       contribution to this class of work is speed and inspectability: at ~2,000 fully-validated
       systems per second, survey trade studies (cadence, baseline, magnitude limits) can be re-run
       interactively, with every gained or lost detection traceable to a specific named world.
     </p>
 
-    <h3 class="sub">5.2 &ensp;HWO target selection and design trades</h3>
+    <h3 class="sub">7.2 &ensp;HWO target selection and design trades</h3>
     <p>
       The HWO community is actively assembling prioritized target lists — the 2025 Target Stars and
-      Systems catalog<sup class="r"><a href="#r5">[5]</a></sup>, the ExEP Mission Star
-      List<sup class="r"><a href="#r6">[6]</a></sup>, and new stellar-activity catalogs aimed
+      Systems catalog (Tuchow et al. 2025), the ExEP Mission Star
+      List (NASA ExEP 2023), and new stellar-activity catalogs aimed
       squarely at reducing yield uncertainty. Published yield analyses identify the occurrence rate
       of Earth-like planets (η<sub>⊕</sub>) and exozodiacal dust as the dominant unknowns, and ask
-      which design changes would protect the 25-exo-Earth goal<sup class="r"><a href="#r7">[7]</a></sup>.
-      A synthetic neighborhood population complements this directly — and §4.4 now delivers the
+      which design changes would protect the 25-exo-Earth goal (Dietrich et al. 2026).
+      A synthetic neighborhood population complements this directly — and §5.4 now delivers the
       first such trade quantitatively: over this model&rsquo;s envelope the exo-Earth yield responds
       only to inner working angle, crossing the 25-planet goal between 60 and 45&nbsp;mas. The
       natural next refinements are an integration-time budget (where albedo and contrast margin
@@ -595,7 +1055,7 @@
       scheduling — each one grafts onto the same stored per-planet contrasts and separations.
     </p>
 
-    <h3 class="sub">5.3 &ensp;Demographic inference and η<sub>⊕</sub></h3>
+    <h3 class="sub">7.3 &ensp;Demographic inference and η<sub>⊕</sub></h3>
     <p>
       Occurrence-rate studies must invert the selection function to recover the true population from
       the observed one. A generative population where the truth is known by construction is the
@@ -606,24 +1066,24 @@
       exercises that don&rsquo;t transfer between instruments. The absolute density normalization
       added in v0.3 strengthens this use: occurrence rates inferred from the modeled surveys can
       now be compared against the generator&rsquo;s truth in physical units (planets per star,
-      planets per pc³), not just in shape. The architecture null model of §4.5 extends the same
+      planets per pc³), not just in shape. The architecture null model of §5.5 extends the same
       idea to system-level statistics — any inference method that claims to measure mutual
       inclinations or intra-system correlations can be handed the null universe first, where the
       right answer is &ldquo;none.&rdquo;
     </p>
 
-    <h3 class="sub">5.4 &ensp;Training corpora for machine-learning detection</h3>
+    <h3 class="sub">7.4 &ensp;Training corpora for machine-learning detection</h3>
     <p>
       Deep-learning vetting models now routinely triage transit candidates at ~97% precision, and
       several groups report that models trained on <em>combined real and synthetic</em> light curves
-      outperform those trained on real data alone<sup class="r"><a href="#r3">[3]</a>&nbsp;<a href="#r4">[4]</a></sup>.
+      outperform those trained on real data alone (Lo &amp; Lo 2025; Cuéllar et al. 2022).
       exoverse generates limb-darkened light curves with realistic stellar noise (granulation,
       spots, flares) and perfect ground-truth labels — including the hard negatives that matter:
       grazing transits, active hosts, and depths straddling detection thresholds. A pipeline
       exporting labeled light-curve corpora would be a small extension with a direct user base.
     </p>
 
-    <h3 class="sub">5.5 &ensp;An open, explorable universe</h3>
+    <h3 class="sub">7.5 &ensp;An open, explorable universe</h3>
     <p>
       Because every world is individually inspectable — with plausibility flags that say
       <em>why</em> a value is uncertain and citations for every approximation — the database doubles
@@ -637,16 +1097,51 @@
 
   <!-- ================================================================ -->
   <section class="col">
-    <h2 class="sec"><span class="n">6</span>References</h2>
-    <ol class="refs">
-      <li id="r1">Boettner, C., et al. 2024, <a href="https://arxiv.org/abs/2407.15917">Exoplanets across Galactic stellar populations with PLATO: estimating exoplanet yields around FGK stars for the thin disk, thick disk and stellar halo</a>, A&amp;A 692, A150.</li>
-      <li id="r2">Wilson, R. F., et al. 2023, <a href="https://arxiv.org/abs/2305.16204">Transiting exoplanet yields for the Roman Galactic Bulge Time Domain Survey predicted from pixel-level simulations</a>, ApJS 269, 5.</li>
-      <li id="r3">2025, <a href="https://arxiv.org/abs/2507.19520">Exoplanet detection using machine learning models trained on synthetic light curves</a>, arXiv:2507.19520.</li>
-      <li id="r4">Cuéllar, S., et al. 2022, <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0268199">Deep learning exoplanet detection by combining real and synthetic data</a>, PLOS ONE 17, e0268199.</li>
-      <li id="r5">2025, <a href="https://arxiv.org/abs/2509.20544">HWO Target Stars and Systems: a prioritized community list of potential stellar targets for the Habitable Worlds Observatory&rsquo;s exo-Earth survey</a>, arXiv:2509.20544.</li>
-      <li id="r6">NASA Exoplanet Exploration Program, 2023, <a href="https://exoplanetarchive.ipac.caltech.edu/docs/2645_NASA_ExEP_Target_List_HWO_Documentation_2023.pdf">ExEP Mission Star List for the Habitable Worlds Observatory</a>.</li>
-      <li id="r7">2026, <a href="https://arxiv.org/abs/2606.04105">Predictive rankings of the probability for temperate terrestrial worlds for the HWO ExEP Mission Star List</a>, arXiv:2606.04105.</li>
-    </ol>
+    <h2 class="sec"><span class="n">8</span>References</h2>
+    <ul class="refs">
+      <li>Boettner, C., Viswanathan, A., &amp; Dayal, P. 2024, <a href="https://arxiv.org/abs/2407.15917">Exoplanets across Galactic stellar populations with PLATO</a>, A&amp;A 692, A150.</li>
+      <li>Chen, J., &amp; Kipping, D. M. 2017, <a href="https://arxiv.org/abs/1603.08614">Probabilistic forecasting of the masses and radii of other worlds</a>, ApJ 834, 17.</li>
+      <li>Claret, A., &amp; Bloemen, S. 2011, <a href="https://ui.adsabs.harvard.edu/abs/2011A%26A...529A..75C">Gravity and limb-darkening coefficients for the Kepler, CoRoT, Spitzer, uvby, UBVRIJHK, and Sloan photometric systems</a>, A&amp;A 529, A75.</li>
+      <li>Cuéllar, S., et al. 2022, <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0268199">Deep learning exoplanet detection by combining real and synthetic data</a>, PLOS ONE 17, e0268199.</li>
+      <li>Dietrich, J., Ruppert, K., Ware, A., &amp; Young, P. A. 2026, <a href="https://arxiv.org/abs/2606.04105">Predictive rankings of the probability for temperate terrestrial worlds for the HWO ExEP Mission Star List</a>, arXiv:2606.04105.</li>
+      <li>Fabrycky, D. C., et al. 2014, <a href="https://arxiv.org/abs/1202.6328">Architecture of Kepler&rsquo;s multi-transiting systems. II. New investigations with twice as many candidates</a>, ApJ 790, 146.</li>
+      <li>Fischer, D. A., &amp; Valenti, J. 2005, <a href="https://ui.adsabs.harvard.edu/abs/2005ApJ...622.1102F">The planet–metallicity correlation</a>, ApJ 622, 1102.</li>
+      <li>Flower, P. J. 1996, <a href="https://ui.adsabs.harvard.edu/abs/1996ApJ...469..355F">Transformations from theoretical Hertzsprung–Russell diagrams to color–magnitude diagrams</a>, ApJ 469, 355.</li>
+      <li>Fulton, B. J., et al. 2017, <a href="https://arxiv.org/abs/1703.10375">The California-Kepler Survey. III. A gap in the radius distribution of small planets</a>, AJ 154, 109.</li>
+      <li>Gaia Collaboration (Smart, R. L., et al.) 2021, <a href="https://arxiv.org/abs/2012.02061">Gaia Early Data Release 3: The Gaia Catalogue of Nearby Stars</a>, A&amp;A 649, A6.</li>
+      <li>Gladman, B. 1993, <a href="https://ui.adsabs.harvard.edu/abs/1993Icar..106..247G">Dynamics of systems of two close planets</a>, Icarus 106, 247.</li>
+      <li>Hayden, M. R., et al. 2015, <a href="https://arxiv.org/abs/1503.02110">Chemical cartography with APOGEE: metallicity distribution functions and the chemical structure of the Milky Way disk</a>, ApJ 808, 132.</li>
+      <li>Henry, T. J., et al. 2018, <a href="https://arxiv.org/abs/1804.07377">The Solar Neighborhood XLIV: RECONS discoveries within 10 parsecs</a>, AJ 155, 265.</li>
+      <li>Kallinger, T., et al. 2014, <a href="https://arxiv.org/abs/1408.0817">The connection between stellar granulation and oscillation as seen by the Kepler mission</a>, A&amp;A 570, A41.</li>
+      <li>Kempton, E. M.-R., et al. 2018, <a href="https://arxiv.org/abs/1805.03671">A framework for prioritizing the TESS planetary candidates most amenable to atmospheric characterization</a>, PASP 130, 114401.</li>
+      <li>Kipping, D. M. 2013, <a href="https://arxiv.org/abs/1306.4982">Parametrizing the exoplanet eccentricity distribution with the Beta distribution</a>, MNRAS 434, L51.</li>
+      <li>Kjeldsen, H., &amp; Bedding, T. R. 1995, <a href="https://arxiv.org/abs/astro-ph/9403015">Amplitudes of stellar oscillations: the implications for asteroseismology</a>, A&amp;A 293, 87.</li>
+      <li>Kopparapu, R. K., et al. 2013, <a href="https://arxiv.org/abs/1301.6674">Habitable zones around main-sequence stars: new estimates</a>, ApJ 765, 131.</li>
+      <li>Kroupa, P. 2001, <a href="https://arxiv.org/abs/astro-ph/0009005">On the variation of the initial mass function</a>, MNRAS 322, 231.</li>
+      <li>Lo, E., &amp; Lo, D. C. 2025, <a href="https://arxiv.org/abs/2507.19520">Exoplanet detection using machine learning models trained on synthetic light curves</a>, arXiv:2507.19520.</li>
+      <li>Mandel, K., &amp; Agol, E. 2002, <a href="https://arxiv.org/abs/astro-ph/0210099">Analytic light curves for planetary transit searches</a>, ApJ 580, L171.</li>
+      <li>Mazeh, T., Holczer, T., &amp; Faigler, S. 2016, <a href="https://arxiv.org/abs/1602.07843">Dearth of short-period Neptunian exoplanets: a desert in period–mass and period–radius planes</a>, A&amp;A 589, A75.</li>
+      <li>McQuillan, A., Mazeh, T., &amp; Aigrain, S. 2014, <a href="https://arxiv.org/abs/1402.5694">Rotation periods of 34,030 Kepler main-sequence stars</a>, ApJS 211, 24.</li>
+      <li>NASA Exoplanet Exploration Program 2023, <a href="https://exoplanetarchive.ipac.caltech.edu/docs/2645_NASA_ExEP_Target_List_HWO_Documentation_2023.pdf">ExEP Mission Star List for the Habitable Worlds Observatory</a>.</li>
+      <li>National Academies of Sciences, Engineering, and Medicine 2021, <a href="https://doi.org/10.17226/26141">Pathways to Discovery in Astronomy and Astrophysics for the 2020s</a> (the Astro2020 decadal survey).</li>
+      <li>Pecaut, M. J., &amp; Mamajek, E. E. 2013, <a href="https://arxiv.org/abs/1307.2657">Intrinsic colors, temperatures, and bolometric corrections of pre-main-sequence stars</a>, ApJS 208, 9.</li>
+      <li>Petigura, E. A., Howard, A. W., &amp; Marcy, G. W. 2013, <a href="https://arxiv.org/abs/1311.6806">Prevalence of Earth-size planets orbiting Sun-like stars</a>, PNAS 110, 19273.</li>
+      <li>Pu, B., &amp; Wu, Y. 2015, <a href="https://arxiv.org/abs/1502.05449">Spacing of Kepler planets: sculpting by dynamical instability</a>, ApJ 807, 44.</li>
+      <li>Rackham, B. V., Apai, D., &amp; Giampapa, M. S. 2018, <a href="https://arxiv.org/abs/1711.05691">The transit light source effect: false spectral features and incorrect densities for M-dwarf transiting planets</a>, ApJ 853, 122.</li>
+      <li>Stassun, K. G., et al. 2018, <a href="https://arxiv.org/abs/1706.00495">The TESS Input Catalog and Candidate Target List</a>, AJ 156, 102.</li>
+      <li>Sudarsky, D., Burrows, A., &amp; Pinto, P. 2000, <a href="https://arxiv.org/abs/astro-ph/9910504">Albedo and reflection spectra of extrasolar giant planets</a>, ApJ 538, 885.</li>
+      <li>Torres, G. 2010, <a href="https://ui.adsabs.harvard.edu/abs/2010AJ....140.1158T">On the use of empirical bolometric corrections for stars</a>, AJ 140, 1158.</li>
+      <li>Tuchow, N. W., Harada, C. K., Mamajek, E. E., et al. 2025, <a href="https://arxiv.org/abs/2509.20544">HWO Target Stars and Systems: a prioritized community list of potential stellar targets for the Habitable Worlds Observatory&rsquo;s exo-Earth survey</a>, arXiv:2509.20544.</li>
+      <li>Van Eylen, V., et al. 2018, <a href="https://arxiv.org/abs/1710.05398">An asteroseismic view of the radius valley: stripped cores, not born rocky</a>, MNRAS 479, 4786.</li>
+      <li>Weiss, L. M., et al. 2018, <a href="https://arxiv.org/abs/1706.06204">The California-Kepler Survey. V. Peas in a pod: planets in a Kepler multi-planet system are similar in size and regularly spaced</a>, AJ 155, 48.</li>
+      <li>Wilson, R. F., et al. 2023, <a href="https://arxiv.org/abs/2305.16204">Transiting exoplanet yields for the Roman Galactic Bulge Time Domain Survey predicted from pixel-level simulations</a>, ApJS 269, 5.</li>
+      <li>Winn, J. N. 2010, <a href="https://arxiv.org/abs/1001.2010">Transits and occultations</a>, in Exoplanets, ed. S. Seager (Univ. Arizona Press).</li>
+      <li>Wolfgang, A., Rogers, L. A., &amp; Ford, E. B. 2016, <a href="https://arxiv.org/abs/1504.07557">Probabilistic mass–radius relationships for sub-Neptune-sized planets</a>, ApJ 825, 19.</li>
+      <li>Xie, J.-W., et al. 2016, <a href="https://arxiv.org/abs/1609.08633">Exoplanet orbital eccentricities derived from LAMOST–Kepler analysis</a>, PNAS 113, 11431.</li>
+      <li>Zahnle, K. J., &amp; Catling, D. C. 2017, <a href="https://arxiv.org/abs/1702.03386">The cosmic shoreline: the evidence that escape determines which planets have atmospheres, and what this may mean for Proxima Centauri b</a>, ApJ 843, 122.</li>
+      <li>Zeng, L., Sasselov, D. D., &amp; Jacobsen, S. B. 2016, <a href="https://arxiv.org/abs/1512.08827">Mass–radius relation for rocky planets based on PREM</a>, ApJ 819, 127.</li>
+      <li>Zhu, W., Petrovich, C., Wu, Y., Dong, S., &amp; Xie, J. 2018, <a href="https://arxiv.org/abs/1802.09526">About 30% of Sun-like stars have Kepler-like planetary systems: a study of their intrinsic architecture</a>, ApJ 860, 101.</li>
+    </ul>
     <p class="refnote">
       Full modeling assumptions, sources, and volatility notes for each observatory — including
       which numbers are requirement-era and expected to change — are maintained in the project&rsquo;s
