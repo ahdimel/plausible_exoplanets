@@ -106,6 +106,18 @@ mid-sequence, it breaks reproducibility of every stored world) →
 
 ## Where the last session left off / natural next steps
 
+- v0.4 Phase 1 (2026-07-03): architecture knobs landed —
+  `architecture.Architecture` (sigma_r marginal-preserving radius copula,
+  sigma_i free Rayleigh + f_hot/sigma_i_hot mixture + isotropic), wired
+  through generate/CLI/web/DB-meta, defaults bit-for-bit neutral
+  (tests/test_architecture.py). Math: docs/sigma_r_note.md. Validation:
+  analysis/phase1_validation_plots.py → results/phase1_validation/
+  (marginal KS D<0.007 across sigma_r; |dlogR| median 0.165→0.028 over
+  sigma_r None→0.1, real 0.121 inside range; projected inc std = sigma_i
+  to <1% for sigma_i<=5; geometric singles-per-multi 2.35 (coplanar) →
+  41.9 (sigma_i=30) → 63 (isotropic)). Next: Phase 2 = DR25 KOI+stellar
+  ingestion, kepler_field conditioning mode, observables + distance
+  metric, docs/robustness_plan.md.
 - v0.4 / dichotomy study Phase 0 (2026-07-03): ACTIVE research project —
   decomposing the Kepler dichotomy into (size-correlation sigma_R,
   inclination-dispersion sigma_i); plan + audit in docs/phase0_audit.md,
