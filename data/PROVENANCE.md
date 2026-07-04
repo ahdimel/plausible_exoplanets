@@ -101,3 +101,13 @@ provenance file is committed (`git add -f data/PROVENANCE.md`). Re-running
 
 `archive_snapshot.csv` (real confirmed-planet catalog for validation) is
 documented in its own header line and `src/exoverse/archive.py`.
+
+## dr25_koi_prad_err.csv (Phase 4, robustness variant 5)
+
+Fetched 2026-07-04 (UTC) from the Exoplanet Archive TAP sync endpoint:
+
+    select kepoi_name,koi_prad_err1,koi_prad_err2 from q1_q17_dr25_koi
+
+8,054 rows. Used only by analysis/robustness.py (radius-uncertainty
+injection on the real |dlogR| distribution); joined to the fiducial KOI
+snapshot on kepoi_name.

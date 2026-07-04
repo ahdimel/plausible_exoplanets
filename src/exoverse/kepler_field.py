@@ -58,6 +58,31 @@ CDPP_DURATIONS_HR: Tuple[float, ...] = (
 SNR_THRESHOLD = 7.1     # Kepler TPS multiple-event statistic threshold
 MIN_TRANSITS = 3        # minimum transit count for a TCE
 
+
+@dataclass(frozen=True)
+class Detection:
+    """Detection-rule variant (Phase 4, docs/robustness_plan.md items
+    3-4). The defaults reproduce the fiducial rule exactly, with no RNG
+    draws, so default results are bit-for-bit identical to the
+    pre-variant code path.
+
+    snr_threshold  : hard SNR cut (or ramp center when mes_ramp_width set)
+    mes_ramp_width : logistic detection-efficiency width in SNR units;
+                     None = hard step (fiducial)
+    window         : "expected" n_tr = dataspan*dutycycle/P (fiducial), or
+                     "binomial" n_tr ~ Binomial(round(dataspan/P), dutycycle)
+    """
+    snr_threshold: float = SNR_THRESHOLD
+    mes_ramp_width: float | None = None
+    window: str = "expected"
+
+    @property
+    def needs_rng(self) -> bool:
+        return self.window == "binomial" or self.mes_ramp_width is not None
+
+
+DEFAULT_DET = Detection()
+
 # Multiplicity histogram keys: 1..5 exact, everything above pooled as "6+"
 N_K_KEYS: Tuple[object, ...] = (1, 2, 3, 4, 5, "6+")
 
@@ -98,25 +123,39 @@ def interp_cdpp(cdpp_ppm: Sequence[float], t14_hours: float) -> float:
     return float(np.interp(t14_hours, CDPP_DURATIONS_HR, cdpp_ppm))
 
 
-def detected_planets(star: Star, planets: Sequence[Planet],
-                     target) -> List[Planet]:
+def detected_planets(star: Star, planets: Sequence[Planet], target,
+                     det: Detection = DEFAULT_DET,
+                     rng: np.random.Generator | None = None) -> List[Planet]:
     """Planets from `planets` that this target's Kepler observation detects.
 
     Applies the module-level detection rule (see module docstring):
     geometric transit, >= MIN_TRANSITS transits in dataspan * dutycycle,
-    limb-darkened SNR >= SNR_THRESHOLD against the CDPP interpolated to the
-    transit duration."""
+    limb-darkened SNR >= det.snr_threshold against the CDPP interpolated
+    to the transit duration. Non-default `det` variants (binomial window,
+    logistic MES ramp) require `rng`; the default is draw-free."""
     span_days = float(target.dataspan) * float(target.dutycycle)
     out: List[Planet] = []
     for p in planets:
-        n_tr = span_days / p.period
+        if det.window == "binomial":
+            n_win = int(round(float(target.dataspan) / p.period))
+            n_tr = float(rng.binomial(n_win, float(target.dutycycle))) \
+                if n_win > 0 else 0.0
+        else:
+            n_tr = span_days / p.period
         if n_tr < MIN_TRANSITS:
             continue
         geom = compute_geometry(star, p)
         if not geom.transits or geom.t14_hours <= 0.0:
             continue
         sigma = interp_cdpp(target.cdpp_ppm, geom.t14_hours)
-        if geom.depth_ppm / sigma * np.sqrt(n_tr) >= SNR_THRESHOLD:
+        snr = geom.depth_ppm / sigma * np.sqrt(n_tr)
+        if det.mes_ramp_width is None:
+            hit = snr >= det.snr_threshold
+        else:
+            eff = 1.0 / (1.0 + np.exp(-(snr - det.snr_threshold)
+                                      / det.mes_ramp_width))
+            hit = rng.random() < eff
+        if hit:
             out.append(p)
     return out
 
@@ -139,25 +178,34 @@ class UniverseResult:
 
 
 def simulate_universe(targets: Sequence, seed: int,
-                      arch: Architecture | None = None) -> UniverseResult:
+                      arch: Architecture | None = None,
+                      det: Detection | None = None) -> UniverseResult:
     """Simulate one universe over the target list. Deterministic in
-    (targets order, seed, arch): each target gets its own independent rng
-    from SeedSequence(seed).spawn(len(targets)) — child i belongs to target
-    i, so results are reproducible and target-parallelizable.
+    (targets order, seed, arch, det): each target gets its own independent
+    rng from SeedSequence(seed).spawn(len(targets)) — child i belongs to
+    target i, so results are reproducible and target-parallelizable.
+    Stochastic detection variants draw from a separate per-target stream
+    (SeedSequence([seed, 1]) children), so the generation stream — and
+    therefore every default-config result — is untouched by `det`.
 
     Skips stellar-noise and atmosphere generation entirely (see module
     docstring): only system._draw_planets + geometry + CDPP thresholding
     run per target."""
     arch = DEFAULT_ARCH if arch is None else arch
+    det = DEFAULT_DET if det is None else det
     children = np.random.SeedSequence(seed).spawn(len(targets))
+    det_children = (np.random.SeedSequence([seed, 1]).spawn(len(targets))
+                    if det.needs_rng else None)
     n_k: Dict[object, int] = {k: 0 for k in N_K_KEYS}
     detected: List[List[Tuple[float, float]]] = []
     n_planets = 0
-    for target, child in zip(targets, children):
+    for i, (target, child) in enumerate(zip(targets, children)):
         rng = np.random.default_rng(child)
         star = star_from_target(target)
         planets, _ = _draw_planets(rng, star, arch)
-        found = detected_planets(star, planets, target)
+        det_rng = (np.random.default_rng(det_children[i])
+                   if det_children is not None else None)
+        found = detected_planets(star, planets, target, det, det_rng)
         if not found:
             continue
         k = len(found)

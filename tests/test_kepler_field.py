@@ -155,3 +155,63 @@ def test_hot_universe_boosts_singles_per_multi():
         return res.n_k[1] / max(1, multis)
 
     assert singles_per_multi(hot) > 2.0 * singles_per_multi(cold)
+
+
+# ------------------------------------------------------ detection variants
+def test_detection_default_bit_for_bit():
+    """An explicitly constructed default Detection must reproduce the
+    det=None path exactly (guards the Phase 4 parameterization)."""
+    from exoverse.kepler_field import DEFAULT_DET, Detection
+    targets = sun_like_targets(600)
+    base = simulate_universe(targets, seed=5)
+    for det in (DEFAULT_DET, Detection(), Detection(snr_threshold=7.1)):
+        res = simulate_universe(targets, seed=5, det=det)
+        assert res.n_k == base.n_k and res.detected == base.detected
+    assert not DEFAULT_DET.needs_rng
+
+
+def noisy_targets(n: int) -> list:
+    """Targets spanning quiet to very noisy, so planet SNRs straddle the
+    7.1 threshold (the flat 30 ppm default leaves nothing near it)."""
+    cdpps = np.geomspace(20.0, 3000.0, n)
+    return [FakeTarget(kepid=i, cdpp_ppm=tuple([float(c)] * 14))
+            for i, c in enumerate(cdpps)]
+
+
+def test_detection_threshold_monotone():
+    """Lowering the SNR threshold can only add detections."""
+    from exoverse.kepler_field import Detection
+    targets = noisy_targets(1500)
+    lo = simulate_universe(targets, seed=9, det=Detection(snr_threshold=6.5))
+    hi = simulate_universe(targets, seed=9, det=Detection(snr_threshold=8.0))
+    assert lo.n_detected_planets > hi.n_detected_planets
+
+
+def test_detection_mes_ramp_reproducible_and_close_to_step():
+    """The logistic MES ramp is seed-reproducible, differs from the hard
+    step, and stays within ~25% of its detection count (the ramp only
+    reshuffles near-threshold candidates)."""
+    from exoverse.kepler_field import Detection
+    targets = noisy_targets(1500)
+    det = Detection(mes_ramp_width=1.0)
+    a = simulate_universe(targets, seed=13, det=det)
+    b = simulate_universe(targets, seed=13, det=det)
+    step = simulate_universe(targets, seed=13)
+    assert a.n_k == b.n_k and a.detected == b.detected
+    assert a.detected != step.detected
+    assert abs(a.n_detected_planets - step.n_detected_planets) \
+        < 0.25 * step.n_detected_planets
+
+
+def test_detection_binomial_window_reproducible():
+    """The binomial window variant draws from its own stream: results are
+    seed-reproducible and near the deterministic expected-count variant."""
+    from exoverse.kepler_field import Detection
+    targets = sun_like_targets(1500)
+    det = Detection(window="binomial")
+    a = simulate_universe(targets, seed=17, det=det)
+    b = simulate_universe(targets, seed=17, det=det)
+    step = simulate_universe(targets, seed=17)
+    assert a.n_k == b.n_k
+    assert abs(a.n_detected_planets - step.n_detected_planets) \
+        < 0.25 * step.n_detected_planets
