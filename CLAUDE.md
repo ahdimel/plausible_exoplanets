@@ -106,6 +106,22 @@ mid-sequence, it breaks reproducibility of every stored world) →
 
 ## Where the last session left off / natural next steps
 
+- v0.4 Phase 2 (2026-07-04): DR25-conditioned pipeline complete —
+  kepler_data (TAP snapshots: 137,493 fiducial FGK targets, 3,400 KOIs /
+  2,547 systems, real N_k={1968,389,127,45,15,3}, spm 3.40, |dlogR|
+  median 0.122/853 pairs; ADQL + cascades in data/PROVENANCE.md),
+  kepler_field (per-target CDPP/dutycycle/dataspan detection; CDPP is
+  empirical total noise so NO stellar-noise stacking; ~25k targets/s),
+  dichotomy (N_k + |dlogR| + monotonicity, one code path for real+syn;
+  multinomial-KL + KS distance, modular). system._draw_planets extracted
+  (draw order byte-identical, bit-for-bit test guards). Fiducial check:
+  default arch spm 3.65 vs real 3.40; sigma_r=0.3 IMPROVES multiplicity
+  distance at fixed sigma_i (degeneracy visible pre-grid). Robustness
+  plan pre-registered in docs/robustness_plan.md BEFORE any grid run.
+  KNOWN LIMITATION: real monotonicity +0.47 unreachable by generator
+  (valley shift makes peas slightly negative) — cross-check metric only.
+  Phase 3 grid: analysis/grid_sweep.py caches observables per cell in
+  results/grid/ (resumable; coarse 8x8xM=3 launched 2026-07-04).
 - v0.4 Phase 1 (2026-07-03): architecture knobs landed —
   `architecture.Architecture` (sigma_r marginal-preserving radius copula,
   sigma_i free Rayleigh + f_hot/sigma_i_hot mixture + isotropic), wired
