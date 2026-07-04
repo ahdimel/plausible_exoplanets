@@ -98,26 +98,26 @@ def check_pair_stability(star: Star, p_in: Planet, p_out: Planet) -> Flag | None
     return None
 
 
-def generate_system(seed: int, name: str, max_planet_tries: int = 40,
-                    dmax_pc: float = 300.0,
-                    arch: Architecture | None = None) -> StellarSystem:
-    """Generate one validated stellar system. INVALID draws are resampled.
+def _draw_planets(rng: np.random.Generator, star: Star, arch: Architecture,
+                  max_planet_tries: int = 40,
+                  sys_flags: List[Flag] | None = None
+                  ) -> tuple[List[Planet], float]:
+    """Draw the planet set and line-of-sight inclinations for one star.
 
-    dmax_pc caps the host distance draw (see stars.generate_star): it only
-    rescales the distance, never the random stream, so (seed, name, dmax_pc)
-    is bit-for-bit reproducible and dmax_pc=300 matches historical worlds.
-    arch (architecture.Architecture) sets the dichotomy-study knobs; the
-    default consumes the identical rng sequence as arch=None, so default
-    worlds match the historical baseline bit-for-bit. Re-generation paths
-    (CLI lightcurve, web UI) must pass the dmax_pc AND arch the population
-    was generated with (both stored in DB meta)."""
-    arch = DEFAULT_ARCH if arch is None else arch
-    rng = np.random.default_rng(seed)
+    This is the exact planet-generation loop + inclination block that
+    historically lived inline in generate_system, extracted so
+    kepler_field.py can run it against DR25-conditioned stars while
+    skipping the (expensive, detection-irrelevant) noise and atmosphere
+    draws. The rng draw order is byte-identical to the pre-refactor code —
+    generate_system remains bit-for-bit reproducible (guarded by
+    tests/test_architecture.py::test_default_arch_bit_for_bit). In
+    particular the radius_latent draw happens only when arch.sigma_r is
+    not None and the f_hot coin only when arch.f_hot > 0, exactly as
+    before.
 
-    star = generate_star(rng, dmax_pc)
-    while star.is_invalid:
-        star = generate_star(rng, dmax_pc)
-
+    Returns (planets sorted by period, system-plane inclination in deg).
+    System-level flags (multiplicity_reduced) are appended to sys_flags
+    when a list is provided."""
     n_target = min(int(rng.poisson(MEAN_PLANETS)), MAX_PLANETS)
     is_single = n_target == 1
 
@@ -169,6 +169,38 @@ def generate_system(seed: int, name: str, max_planet_tries: int = 40,
             node = rng.uniform(0.0, 2.0 * math.pi)
             p.inc_deg = tilted_inclination_deg(sys_inc, mut, node)
 
+    if sys_flags is not None and n_target > 0 and len(planets) < n_target:
+        sys_flags.append(Flag(
+            Severity.INFO, "system.multiplicity_reduced",
+            f"Targeted {n_target} planets but only {len(planets)} "
+            "satisfied stability constraints"))
+    return planets, sys_inc
+
+
+def generate_system(seed: int, name: str, max_planet_tries: int = 40,
+                    dmax_pc: float = 300.0,
+                    arch: Architecture | None = None) -> StellarSystem:
+    """Generate one validated stellar system. INVALID draws are resampled.
+
+    dmax_pc caps the host distance draw (see stars.generate_star): it only
+    rescales the distance, never the random stream, so (seed, name, dmax_pc)
+    is bit-for-bit reproducible and dmax_pc=300 matches historical worlds.
+    arch (architecture.Architecture) sets the dichotomy-study knobs; the
+    default consumes the identical rng sequence as arch=None, so default
+    worlds match the historical baseline bit-for-bit. Re-generation paths
+    (CLI lightcurve, web UI) must pass the dmax_pc AND arch the population
+    was generated with (both stored in DB meta)."""
+    arch = DEFAULT_ARCH if arch is None else arch
+    rng = np.random.default_rng(seed)
+
+    star = generate_star(rng, dmax_pc)
+    while star.is_invalid:
+        star = generate_star(rng, dmax_pc)
+
+    sys_flags: List[Flag] = []
+    planets, sys_inc = _draw_planets(rng, star, arch, max_planet_tries,
+                                     sys_flags)
+
     # Astrophysical noise state and atmospheres are drawn here (not in the
     # orchestrator) so a system is bit-for-bit reproducible from (seed, name)
     noise = generate_stellar_noise(rng, star)
@@ -176,11 +208,8 @@ def generate_system(seed: int, name: str, max_planet_tries: int = 40,
         p.atmosphere = assign_atmosphere(rng, star, p)
 
     system = StellarSystem(name=name, seed=seed, star=star, planets=planets,
-                           sys_inc_deg=sys_inc, noise=noise)
-    if n_target > 0 and len(planets) < n_target:
-        system.add_flag(Severity.INFO, "system.multiplicity_reduced",
-                        f"Targeted {n_target} planets but only {len(planets)} "
-                        "satisfied stability constraints")
+                           sys_inc_deg=sys_inc, noise=noise,
+                           flags=sys_flags)
     if len(planets) >= 5:
         system.add_flag(Severity.QUESTIONABLE, "system.high_multiplicity",
                         f"{len(planets)}-planet system: real analogs exist "
