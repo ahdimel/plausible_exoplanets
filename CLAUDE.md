@@ -106,6 +106,38 @@ mid-sequence, it breaks reproducibility of every stored world) →
 
 ## Where the last session left off / natural next steps
 
+- v0.4 Phase 3+4 in flight (2026-07-04, commit c63be1e): fine grid DONE
+  (14x16xM=8, results/grid/, seeds SeedSequence([20260704,i_sr,i_si,m])).
+  Inference = likelihood, not raw distance (analysis/grid_inference.py):
+  multinomial logL on N_k shape + reflected-KDE logL on |dlogR| (fixed
+  Silverman bw 0.0326 from the real 853 pairs). Seed noise ~3.7 lnL >
+  Wilks 1-sigma, so contours come from a cubic fit in (ln sr, ln si)
+  over the valley (residual RMS validated vs noise); top-up m=8..15 for
+  85 valley cells via analysis/grid_topup.py. RESULTS SO FAR (M=8):
+  sigma_i is an UPPER LIMIT (best at 0.2deg grid edge; UL95 ~0.4-0.5deg
+  free sigma_r); sigma_r ~1.5-1.7 (68% width ~0.10 in ln — statistics
+  beat systematics, see robustness); DECOMPOSITION IS CLEAN: sigma_r
+  constrained ~entirely by |dlogR| (Delta lnL ~1085 across row, mult ~5),
+  sigma_i ~entirely by N_k (~461 across column, size flat) — the two
+  effects are nearly orthogonal under DR25 conditioning, NOT degenerate.
+  Correlated radii beat uncorrelated by Delta lnL ~8. Multiplicity GoF
+  at best fit REJECTED: G2=26.6/3dof (model spm 2.90 vs real 3.40,
+  overproduces k=2, underproduces k=1,4,5) -> mixture test is live
+  (analysis/mixture_sweep.py at fixed sr=1.5244, f_hot x sigma_i_hot,
+  namespace seed [20260704,7,...]; scored by mixture_inference.py, AIC).
+  Phase 4 (analysis/robustness.py, results/robustness.json): metric/real
+  variants DONE — score cuts/trunc4/bw_half PASS; radius_err FAILS on
+  sigma_r (+0.28 ln; synthetic radii lack measurement noise — proposed
+  fix: convolve synthetic radii with catalog errors), bw_double FAILS
+  (-0.18 ln sr), monotonicity FAILS (pre-documented generator
+  limitation), poisson FAILS (fixed Poisson(2.2) occurrence leaks in);
+  sigma_i UL95 stable 0.41-0.54 across all but monotonicity. Resim
+  variants (teff_gk/logg42/nodataspan/snr65/snr80/mesramp/binwindow;
+  kepler_field.Detection dataclass, default bit-for-bit, 111 tests) run
+  via `robustness.py --run all --workers 4` (57 valley cells x M=8 each,
+  paired seeds). NEXT: rerun grid_inference at M=16, mixture_inference,
+  resim variants, then CHECKPOINT 4 — STOP, present Outcome A/B/C/D
+  choice to the user BEFORE drafting paper/dichotomy_section.md.
 - v0.4 Phase 2 (2026-07-04): DR25-conditioned pipeline complete —
   kepler_data (TAP snapshots: 137,493 fiducial FGK targets, 3,400 KOIs /
   2,547 systems, real N_k={1968,389,127,45,15,3}, spm 3.40, |dlogR|
