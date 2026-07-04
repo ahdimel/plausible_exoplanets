@@ -10,8 +10,9 @@ Stability rules applied to adjacent planet pairs:
 
 Geometry: a single system plane orientation is drawn isotropically
 (cos i uniform), and each planet's orbit normal is tilted away from the
-system-plane normal by a mutual inclination (Rayleigh, sigma=1.5 deg,
-Fabrycky+ 2014) at a uniformly random nodal azimuth. The azimuth matters:
+system-plane normal by a mutual inclination (Rayleigh, sigma_i from the
+Architecture config; default 1.5 deg, Fabrycky+ 2014) at a uniformly
+random nodal azimuth. The azimuth matters:
 only the component of the tilt along the line of sight changes the impact
 parameter, so a Rayleigh(sigma) tilt with random node projects to a
 Normal(0, sigma) inclination offset. (Applying the full tilt with a random
@@ -28,6 +29,7 @@ from typing import List
 
 import numpy as np
 
+from .architecture import DEFAULT_ARCH, Architecture
 from .atmospheres import assign_atmosphere
 from .constants import M_EARTH, M_SUN
 from .flags import Flag, Severity
@@ -97,14 +99,19 @@ def check_pair_stability(star: Star, p_in: Planet, p_out: Planet) -> Flag | None
 
 
 def generate_system(seed: int, name: str, max_planet_tries: int = 40,
-                    dmax_pc: float = 300.0) -> StellarSystem:
+                    dmax_pc: float = 300.0,
+                    arch: Architecture | None = None) -> StellarSystem:
     """Generate one validated stellar system. INVALID draws are resampled.
 
     dmax_pc caps the host distance draw (see stars.generate_star): it only
     rescales the distance, never the random stream, so (seed, name, dmax_pc)
     is bit-for-bit reproducible and dmax_pc=300 matches historical worlds.
-    Re-generation paths (CLI lightcurve, web UI) must pass the dmax_pc the
-    population was generated with (stored in DB meta)."""
+    arch (architecture.Architecture) sets the dichotomy-study knobs; the
+    default consumes the identical rng sequence as arch=None, so default
+    worlds match the historical baseline bit-for-bit. Re-generation paths
+    (CLI lightcurve, web UI) must pass the dmax_pc AND arch the population
+    was generated with (both stored in DB meta)."""
+    arch = DEFAULT_ARCH if arch is None else arch
     rng = np.random.default_rng(seed)
 
     star = generate_star(rng, dmax_pc)
@@ -114,6 +121,12 @@ def generate_system(seed: int, name: str, max_planet_tries: int = 40,
     n_target = min(int(rng.poisson(MEAN_PLANETS)), MAX_PLANETS)
     is_single = n_target == 1
 
+    # Latent intra-system radius scale (copula, architecture.py). Drawn only
+    # when the knob is on so default populations keep the historical stream.
+    radius_latent = None
+    if arch.sigma_r is not None:
+        radius_latent = (float(rng.standard_normal()), arch.sigma_r)
+
     planets: List[Planet] = []
     tries = 0
     while len(planets) < n_target and tries < max_planet_tries:
@@ -122,7 +135,7 @@ def generate_system(seed: int, name: str, max_planet_tries: int = 40,
         # Enforce minimum period ratio 1.2 against existing planets
         if any(max(period, q.period) / min(period, q.period) < 1.2 for q in planets):
             continue
-        cand = generate_planet(rng, star, period, is_single)
+        cand = generate_planet(rng, star, period, is_single, radius_latent)
         if cand.is_invalid:
             continue
         trial = sorted(planets + [cand], key=lambda p: p.period)
@@ -143,10 +156,18 @@ def generate_system(seed: int, name: str, max_planet_tries: int = 40,
         planets = trial
 
     sys_inc = math.degrees(math.acos(rng.uniform(0.0, 1.0)))
-    for p in planets:
-        mut = rng.rayleigh(1.5)
-        node = rng.uniform(0.0, 2.0 * math.pi)
-        p.inc_deg = tilted_inclination_deg(sys_inc, mut, node)
+    if arch.isotropic:
+        # Exact independent-isotropic limit: no shared plane at all
+        for p in planets:
+            p.inc_deg = math.degrees(math.acos(rng.uniform(0.0, 1.0)))
+    else:
+        sigma_i = arch.sigma_i
+        if arch.f_hot > 0.0 and rng.random() < arch.f_hot:
+            sigma_i = arch.sigma_i_hot
+        for p in planets:
+            mut = rng.rayleigh(sigma_i)
+            node = rng.uniform(0.0, 2.0 * math.pi)
+            p.inc_deg = tilted_inclination_deg(sys_inc, mut, node)
 
     # Astrophysical noise state and atmospheres are drawn here (not in the
     # orchestrator) so a system is bit-for-bit reproducible from (seed, name)

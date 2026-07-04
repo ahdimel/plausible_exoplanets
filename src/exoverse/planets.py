@@ -49,6 +49,7 @@ from typing import List
 
 import numpy as np
 
+from .architecture import correlated_quantile
 from .constants import (
     AU, DAY, G, M_EARTH, M_JUP, M_SUN, R_EARTH, R_JUP, R_SUN,
 )
@@ -105,6 +106,36 @@ def sample_small_radius(rng: np.random.Generator, period: float) -> float:
     else:
         r = float(np.exp(rng.normal(np.log(2.4), 0.25)))
     return float(np.clip(r * shift ** 0.5, 0.4, 4.0))
+
+
+def small_radius_cdf(r: float, period: float) -> float:
+    """Exact CDF of sample_small_radius (before the [0.4, 4.0] clip atoms):
+    the same two-lognormal mixture with the same period-dependent shift.
+    Kept in lockstep with sample_small_radius — the sigma_r copula path
+    (architecture.py) relies on this being the identical marginal."""
+    f = ((period / 10.0) ** (-0.10)) ** 0.5
+    x = math.log(r / f)
+    phi1 = 0.5 * (1.0 + math.erf((x - math.log(1.3)) / (0.20 * math.sqrt(2.0))))
+    phi2 = 0.5 * (1.0 + math.erf((x - math.log(2.4)) / (0.25 * math.sqrt(2.0))))
+    return 0.45 * phi1 + 0.55 * phi2
+
+
+def small_radius_ppf(u: float, period: float) -> float:
+    """Inverse CDF of sample_small_radius, including the clip atoms at 0.4
+    and 4.0 Re (quantile mass outside the clip maps onto the boundary, which
+    is exactly what np.clip does to the sampled values)."""
+    if u <= small_radius_cdf(0.4, period):
+        return 0.4
+    if u >= small_radius_cdf(4.0, period):
+        return 4.0
+    lo, hi = 0.4, 4.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if small_radius_cdf(mid, period) < u:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
 
 
 def giant_probability(star: Star) -> float:
@@ -181,7 +212,11 @@ def habitable_zone_au(star: Star) -> tuple[float, float]:
 # Single-planet generation (bulk + orbit around a given star)
 # ----------------------------------------------------------------------------
 def generate_planet(rng: np.random.Generator, star: Star, period: float,
-                    is_single: bool) -> Planet:
+                    is_single: bool,
+                    radius_latent: tuple[float, float] | None = None) -> Planet:
+    """radius_latent=(z_sys, sigma_r) switches the small-planet radius draw
+    to the marginal-preserving intra-system copula (architecture.py); None
+    keeps the historical independent draw bit-for-bit."""
     a_au = semimajor_axis_au(period, star.mass)
     teq_guess = equilibrium_temp(star, a_au)
 
@@ -189,7 +224,11 @@ def generate_planet(rng: np.random.Generator, star: Star, period: float,
         radius = sample_giant_radius(rng, teq_guess)
         mass, comp = mass_from_radius(rng, radius)
     else:
-        radius = sample_small_radius(rng, period)
+        if radius_latent is None:
+            radius = sample_small_radius(rng, period)
+        else:
+            u = correlated_quantile(rng, radius_latent[0], radius_latent[1])
+            radius = small_radius_ppf(u, period)
         mass, comp = mass_from_radius(rng, radius)
 
     rho = (mass * M_EARTH) / (4.0 / 3.0 * math.pi * (radius * R_EARTH) ** 3) / 1000.0  # g/cc

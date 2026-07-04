@@ -38,6 +38,29 @@ Generation is fully deterministic per seed: any stored system can be
 re-generated bit-for-bit from its `(seed, name)`, which is how `lightcurve`
 re-simulates without storing arrays.
 
+## Architecture knobs (Kepler-dichotomy study)
+
+Two optional generator parameters decompose the Kepler dichotomy into
+size-uniformity and inclination-dispersion effects (study plan and audit:
+`docs/phase0_audit.md`; math: `docs/sigma_r_note.md`):
+
+```bash
+.venv/bin/exoverse --db hot.db generate --n 10000 --sigma-r 0.3 --sigma-i 5
+```
+
+- `--sigma-r` — intra-system radius correlation via a marginal-preserving
+  Gaussian copula: small values give peas-in-a-pod uniformity (Weiss+
+  2018), unset keeps the historical independent draws. The population's
+  one-point radius distribution is identical for every value.
+- `--sigma-i` — Rayleigh scale (deg) of mutual inclinations about the
+  system plane (default 1.5). `--f-hot` / `--sigma-i-hot` add a second,
+  dynamically hot component (the classic dichotomy model); `--isotropic`
+  removes the shared plane entirely.
+
+Defaults are bit-for-bit neutral (enforced by `tests/test_architecture.py`),
+and the knobs are stored in DB meta so `(seed, name)` re-generation stays
+exact.
+
 ## What gets generated
 
 **Stars** — Kroupa (2001) IMF over 0.08–2.2 M☉; main-sequence L(M), R(M)

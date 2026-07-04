@@ -7,15 +7,21 @@ import argparse
 import json
 import sys
 
+from .architecture import Architecture
 from .constants import R_EARTH, R_JUP
 from .database import WorldDB
 from .generate import generate_population
 
 
 def cmd_generate(args) -> None:
+    arch = Architecture(
+        sigma_r=args.sigma_r, sigma_i=args.sigma_i, f_hot=args.f_hot,
+        sigma_i_hot=args.sigma_i_hot, isotropic=args.isotropic)
     print(f"Generating {args.n} systems (seed={args.seed}, "
-          f"dmax={args.dmax:.0f} pc) -> {args.db}")
-    stats = generate_population(args.db, args.n, args.seed, dmax_pc=args.dmax)
+          f"dmax={args.dmax:.0f} pc"
+          + ("" if arch.is_default else f", arch={arch}") + f") -> {args.db}")
+    stats = generate_population(args.db, args.n, args.seed, dmax_pc=args.dmax,
+                                arch=arch)
     print(json.dumps(stats, indent=2, default=str))
 
 
@@ -148,8 +154,9 @@ def cmd_lightcurve(args) -> None:
     if s is None:
         print(f"System '{args.system}' not found", file=sys.stderr)
         sys.exit(1)
-    # deterministic re-generation (dmax_pc from meta keeps distances exact)
-    system = generate_system(s["seed"], s["name"], dmax_pc=db.dmax_pc)
+    # deterministic re-generation (dmax_pc + arch from meta keep it exact)
+    system = generate_system(s["seed"], s["name"], dmax_pc=db.dmax_pc,
+                             arch=Architecture.from_meta(db.get_meta))
     letters = "bcdefghijklmn"
     idx = letters.index(args.planet)
     if idx >= len(system.planets):
@@ -227,6 +234,21 @@ def main(argv=None) -> None:
     g.add_argument("--dmax", type=float, default=300.0,
                    help="max host distance in pc (30 = solar neighborhood "
                         "for direct-imaging studies; default 300)")
+    g.add_argument("--sigma-r", type=float, default=None,
+                   help="intra-system radius correlation width (latent, "
+                        "dimensionless; small = peas-in-a-pod, unset = "
+                        "independent radii; see docs/sigma_r_note.md)")
+    g.add_argument("--sigma-i", type=float, default=1.5,
+                   help="Rayleigh scale of mutual inclinations in deg "
+                        "(default 1.5)")
+    g.add_argument("--f-hot", type=float, default=0.0,
+                   help="fraction of systems drawing the hot inclination "
+                        "component (two-population dichotomy model)")
+    g.add_argument("--sigma-i-hot", type=float, default=30.0,
+                   help="hot-component Rayleigh scale in deg (default 30)")
+    g.add_argument("--isotropic", action="store_true",
+                   help="independent isotropic inclinations (no shared "
+                        "system plane)")
     g.set_defaults(func=cmd_generate)
 
     l = sub.add_parser("list", help="list systems")

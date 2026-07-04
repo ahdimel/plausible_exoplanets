@@ -7,6 +7,7 @@ import time
 
 import numpy as np
 
+from .architecture import Architecture
 from .atmospheres import score_atmosphere_observability
 from .database import WorldDB
 from .observatories import JWST_INSTRUMENTS, observe
@@ -16,20 +17,26 @@ from .transits import compute_geometry
 
 def generate_population(db_path: str, n_systems: int, seed: int = 42,
                         progress: bool = True,
-                        dmax_pc: float = 300.0) -> dict:
+                        dmax_pc: float = 300.0,
+                        arch: Architecture | None = None) -> dict:
     """Generate n_systems validated systems and store them in db_path.
 
-    dmax_pc caps host distances (solar-neighborhood mode when small); it is
-    recorded in DB meta so re-generation from (seed, name) stays exact."""
+    dmax_pc caps host distances (solar-neighborhood mode when small) and
+    arch sets the architecture knobs (sigma_r/sigma_i, architecture.py);
+    both are recorded in DB meta so re-generation from (seed, name) stays
+    exact."""
     db = WorldDB(db_path)
     db.set_meta("dmax_pc", str(dmax_pc))
+    if arch is not None:
+        for key, value in arch.meta_items().items():
+            db.set_meta(key, value)
     master = np.random.SeedSequence(seed)
     child_seeds = master.generate_state(n_systems)
 
     t0 = time.time()
     for i, child in enumerate(child_seeds):
         name = f"PXS-{seed}-{i:05d}"
-        system = generate_system(int(child), name, dmax_pc=dmax_pc)
+        system = generate_system(int(child), name, dmax_pc=dmax_pc, arch=arch)
         star = system.star
         geoms = [compute_geometry(star, p) for p in system.planets]
         obs = [observe(star, p, g, system.noise)
