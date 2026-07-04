@@ -61,6 +61,32 @@ Defaults are bit-for-bit neutral (enforced by `tests/test_architecture.py`),
 and the knobs are stored in DB meta so `(seed, name)` re-generation stays
 exact.
 
+### Study result (2026-07, pre-registered outcome A+C)
+
+Fitting both knobs jointly to Kepler DR25 — synthetic universes
+conditioned on the real 137,493-target stellar sample with per-target
+noise/windows, compared to the 2,547 fiducial KOI systems on the
+multiplicity-vector shape and adjacent-pair |ΔlogR| likelihoods:
+
+- the two effects are **nearly orthogonal** (posterior correlation
+  0.07): |ΔlogR| pins σ_R, the multiplicity vector pins σ_i;
+- sibling radii are moderately correlated (σ_R = 1.55, ρ ≈ 0.29;
+  uniformity and independence both excluded);
+- the dominant population needs **no** mutual-inclination dispersion
+  (σ_i ≤ 0.44° at 95%, σ_R free) — but a small hot fraction
+  (f_hot ≈ 0.05–0.2 at σ_i,hot ≳ 10°) is still statistically demanded
+  (ΔAIC = −14.4), so the dichotomy survives joint modeling, attenuated.
+
+Full write-up: `paper/dichotomy_section.md`; decision trail:
+`docs/checkpoint4_results.md`; robustness: `results/robustness.json`.
+Reproduce from the committed caches (minutes) or from scratch (~10 h,
+needs the DR25 snapshots):
+
+```bash
+make reproduce-dichotomy      # analysis + figures from results/ caches
+make dichotomy-from-scratch   # re-fetch DR25, re-simulate all universes
+```
+
 ## What gets generated
 
 **Stars** — Kroupa (2001) IMF over 0.08–2.2 M☉; main-sequence L(M), R(M)

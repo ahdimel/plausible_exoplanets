@@ -135,22 +135,28 @@ mid-sequence, it breaks reproducibility of every stored world) →
   variants (teff_gk/logg42/nodataspan/snr65/snr80/mesramp/binwindow;
   kepler_field.Detection dataclass, default bit-for-bit, 111 tests) run
   via `robustness.py --run all --workers 4` (57 valley cells x M=8 each,
-  paired seeds). ALL COMPUTATION DONE — study is AT CHECKPOINT 4
-  (docs/checkpoint4_results.md is the decision document, presented to
-  the user 2026-07-04): final numbers sigma_r=1.55 68% [1.50,1.64],
-  sigma_i UL95 0.44 deg (free) / 0.24 (uncorrelated-fixed, +83% -> the
-  Outcome A trigger fires numerically), posterior corr 0.07, mixture
-  f_hot~0.1 demanded (Delta AIC -14.4, G2 32.6->17.2, spm 2.90->3.29 vs
-  real 3.40 -> Outcome C trigger fires too). Robustness: all 9
-  sample/detection/window variants PASS; radius_err (+0.28 ln sr),
-  bw_double, monotonicity (pre-known), poisson (sigma_i UL tightens ->
-  headline conservative) FAIL — all localized to sigma_r central value
-  or metric conditionality; brief's Outcome-D (detection simplification
-  dominates) does NOT fire. Proposed reading: joint A+C; optional ~1 h
-  fix = convolve synthetic radii with DR25 fractional errors and rerun
-  valley. DO NOT draft paper/dichotomy_section.md until the user picks
-  the Outcome (checkpoint 4 is a hard stop; paper.html §5.5 still
-  stale, refresh alongside the paper section).
+  paired seeds). STUDY COMPLETE — the user declared joint OUTCOME A+C
+  at checkpoint 4 (decision trail: docs/checkpoint4_results.md).
+  Final numbers: sigma_r=1.55 68% [1.50,1.64] 95% [1.36,1.86] (rho
+  ~0.29), sigma_i UPPER LIMIT 0.26/0.44 deg 68/95% free (0.21/0.24
+  uncorrelated-fixed; +83% -> Outcome A trigger), posterior corr 0.07
+  (orthogonal; |dlogR| pins sigma_r ~1084 lnL, N_k pins sigma_i ~461),
+  Delta lnL corr-vs-uncorr 10.3, single-pop N_k GoF rejected G2=32.6/3,
+  mixture f_hot~0.1 sigma_i_hot 10-30 deg demanded (Delta AIC -14.4,
+  G2 25.8->17.2 seed-matched, spm 2.90->3.29 vs real 3.40 -> Outcome
+  C). Robustness 11/15 pass (all 9 sample/detection/window variants);
+  fails localized: radius_err +0.28 ln sr (NAMED FOLLOW-UP: convolve
+  synthetic radii with DR25 fractional errors, data already at
+  data/dr25_koi_prad_err.csv), bw_double, monotonicity (pre-known),
+  poisson (makes sigma_i UL conservative). DELIVERABLES SHIPPED:
+  paper/dichotomy_section.md (~2.1k words, figures wired), publication
+  figures analysis/paper_figures.py -> results/figures/paper/ (QA'd:
+  smooth-best gate, number cross-checks), Makefile reproduce-dichotomy
+  / dichotomy-from-scratch (cold-start order matters: inference runs
+  M=8 before topup, again after), README study section, docs/paper.html
+  §5.5 + §4/§5.1 refreshed post-geometry-fix (null spm 5.5->4.4, 25,121
+  detections; validated vs data/validation_report.json). NOTE:
+  .gitignore has *.png — paper figures must be git add -f.
 - v0.4 Phase 2 (2026-07-04): DR25-conditioned pipeline complete —
   kepler_data (TAP snapshots: 137,493 fiducial FGK targets, 3,400 KOIs /
   2,547 systems, real N_k={1968,389,127,45,15,3}, spm 3.40, |dlogR|
